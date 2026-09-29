@@ -1,0 +1,79 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0A0908;
+  --surface: #14120E;
+  --border: rgba(255, 244, 214, 0.08);
+}
+
+body {
+  background-color: var(--bg);
+  color: #FFF4D6;
+  overflow-x: hidden;
+}
+
+.pro-backdrop {
+  background-color: #0A0908;
+  background-image: 
+    radial-gradient(ellipse 70% 55% at 50% -8%, rgba(252, 108, 38, 0.16) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 35% at 50% 115%, rgba(255, 244, 214, 0.05) 0%, transparent 70%),
+    radial-gradient(circle at 1px 1px, rgba(255, 244, 214, 0.05) 1px, transparent 0);
+  background-size: 100% 100%, 100% 100%, 28px 28px;
+}
+
+/* The exact animations shown in the bottom code snippet of the video */
+@keyframes revealDown {
+  from {
+    clip-path: inset(0 0 100% 0);
+    opacity: 1;
+  }
+  to {
+    clip-path: inset(0 0 0% 0);
+    opacity: 1;
+  }
+}
+
+@keyframes glowTravel {
+  0% {
+    top: 6%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: 94%;
+    opacity: 0;
+  }
+}
+
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shimmer::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(60deg, transparent, rgba(255, 244, 214, 0.2), transparent);
+  transform: rotate(30deg) translateX(-100%);
+  transition: transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-shimmer:hover::after {
+  transform: rotate(30deg) translateX(100%);
+}
+
+@keyframes scan {
+  0% { top: -20%; opacity: 0; }
+  25% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { top: 110%; opacity: 0; }
+}
