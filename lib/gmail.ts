@@ -1,4 +1,4 @@
-﻿import { google } from "googleapis";
+import { google } from "googleapis";
 import { GOOGLE_OAUTH_CONFIG } from "./oauth";
 import { supabase } from "./db";
 
@@ -15,6 +15,11 @@ interface SendParams {
 }
 
 export async function sendCertEmail(p: SendParams) {
+  if (!GOOGLE_OAUTH_CONFIG.clientId || !GOOGLE_OAUTH_CONFIG.clientSecret) {
+    console.error("[GMAIL_SEND_ERROR] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET environment variable is missing on server!");
+    throw new Error("Server is missing Google OAuth client credentials.");
+  }
+
   const oauth2Client = new google.auth.OAuth2(
     GOOGLE_OAUTH_CONFIG.clientId,
     GOOGLE_OAUTH_CONFIG.clientSecret,
