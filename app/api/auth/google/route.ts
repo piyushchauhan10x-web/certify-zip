@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { buildAuthUrl, GOOGLE_OAUTH_CONFIG } from "@/lib/oauth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!GOOGLE_OAUTH_CONFIG.clientId) {
     console.error("[OAUTH_CRITICAL_ERROR] GOOGLE_CLIENT_ID environment variable is missing on server!");
     return NextResponse.json(
@@ -14,5 +14,6 @@ export async function GET() {
   }
   const user = await getCurrentUser();
   const state = user ? user.id : "signin";
-  return NextResponse.redirect(buildAuthUrl(state));
+  return NextResponse.redirect(buildAuthUrl(state, req));
 }
+

@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { hashPassword, createSessionToken } from "@/lib/auth";
 import { checkRateLimit, getClientKey } from "@/lib/rateLimit";
@@ -36,11 +36,13 @@ export async function POST(req: NextRequest) {
 
     const token = createSessionToken(data.id);
     const res = NextResponse.json({ ok: true });
+    const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
     res.cookies.set("session", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     });
     return res;
   } catch (err: any) {

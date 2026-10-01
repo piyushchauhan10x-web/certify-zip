@@ -1,22 +1,24 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
-import { GOOGLE_OAUTH_CONFIG } from "@/lib/oauth";
+import { getBaseUrl, getRedirectUri, GOOGLE_OAUTH_CONFIG } from "@/lib/oauth";
 import { supabase } from "@/lib/db";
 import { createSessionToken, hashPassword } from "@/lib/auth";
 import { nanoid } from "nanoid";
 
 export async function GET(req: NextRequest) {
+  const baseUrl = getBaseUrl(req);
+  const redirectUri = getRedirectUri(req);
   const code = req.nextUrl.searchParams.get("code");
   const state = req.nextUrl.searchParams.get("state");
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL("/login?error=oauth_failed", req.url));
+    return NextResponse.redirect(new URL("/login?error=oauth_failed", baseUrl));
   }
 
   const oauth2Client = new google.auth.OAuth2(
     GOOGLE_OAUTH_CONFIG.clientId,
     GOOGLE_OAUTH_CONFIG.clientSecret,
-    GOOGLE_OAUTH_CONFIG.redirectUri
+    redirectUri
   );
 
   const { tokens } = await oauth2Client.getToken(code);
@@ -59,18 +61,20 @@ export async function GET(req: NextRequest) {
         .single();
 
       if (error || !newUser) {
-        return NextResponse.redirect(new URL("/login?error=account_creation_failed", req.url));
+        return NextResponse.redirect(new URL("/login?error=account_creation_failed", baseUrl));
       }
       userId = newUser.id;
     }
 
     const sessionToken = createSessionToken(userId);
-    const res = NextResponse.redirect(new URL("/?connected=1", req.url));
+    const res = NextResponse.redirect(new URL("/?connected=1", baseUrl));
+    const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
     res.cookies.set("session", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     });
     return res;
   }
@@ -84,5 +88,6 @@ export async function GET(req: NextRequest) {
     })
     .eq("id", state);
 
-  return NextResponse.redirect(new URL("/?connected=1", req.url));
+  return NextResponse.redirect(new URL("/?connected=1", baseUrl));
 }
+

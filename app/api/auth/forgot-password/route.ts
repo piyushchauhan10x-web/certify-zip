@@ -1,9 +1,10 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { createResetToken } from "@/lib/auth";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { checkRateLimit, getClientKey } from "@/lib/rateLimit";
 import { authSchema } from "@/lib/validation";
+import { getBaseUrl } from "@/lib/oauth";
 
 export async function POST(req: NextRequest) {
   const clientKey = getClientKey(req);
@@ -22,7 +23,8 @@ export async function POST(req: NextRequest) {
 
     if (user) {
       const token = createResetToken(user.id);
-      const resetLink = `${process.env.APP_URL || "http://localhost:3000"}/reset-password?token=${token}`;
+      const baseUrl = getBaseUrl(req);
+      const resetLink = `${baseUrl}/reset-password?token=${token}`;
       await sendPasswordResetEmail(parsed.data.email, resetLink);
     }
 
@@ -32,3 +34,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }
+
