@@ -34,3 +34,51 @@ export async function sendPasswordResetEmail(to: string, resetLink: string) {
     return { error: err };
   }
 }
+
+interface SendCertParams {
+  to: string;
+  subject: string;
+  bodyHtml: string;
+  fromName?: string;
+  pdfBuffer: Buffer;
+  attachmentName: string;
+}
+
+export async function sendCertEmailViaResend(p: SendCertParams) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || apiKey === "re_placeholder") {
+    console.error("[RESEND_ERROR] RESEND_API_KEY environment variable is missing!");
+    throw new Error("RESEND_API_KEY environment variable is missing.");
+  }
+
+  const resend = new Resend(apiKey);
+  const defaultFrom = process.env.EMAIL_FROM || "Certify <onboarding@resend.dev>";
+
+  let fromHeader = defaultFrom;
+  if (p.fromName) {
+    const emailMatch = defaultFrom.match(/<([^>]+)>/);
+    const emailAddr = emailMatch ? emailMatch[1] : defaultFrom;
+    fromHeader = `${p.fromName} <${emailAddr}>`;
+  }
+
+  const result = await resend.emails.send({
+    from: fromHeader,
+    to: p.to,
+    subject: p.subject,
+    html: p.bodyHtml,
+    attachments: [
+      {
+        filename: p.attachmentName,
+        content: p.pdfBuffer,
+      },
+    ],
+  });
+
+  if (result.error) {
+    console.error("[RESEND_API_ERROR] Failed to send certificate email:", result.error);
+    throw new Error(result.error.message || "Resend API error");
+  }
+
+  return result;
+}
+

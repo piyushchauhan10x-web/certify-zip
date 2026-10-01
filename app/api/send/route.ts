@@ -1,50 +1,107 @@
-﻿import { NextRequest, NextResponse } from "next/server";
-import { sendCertEmail } from "@/lib/gmail";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { supabase } from "@/lib/db";
+import { sendCertEmailViaResend } from "@/lib/email";
 import { checkRateLimit, getClientKey } from "@/lib/rateLimit";
-import { sendRequestSchema } from "@/lib/validation";
+import { z } from "zod";
+
+export const maxDuration = 60;
+
+const sendPayloadSchema = z.object({
+  path: z.string().min(1),
+  to: z.string().email(),
+  name: z.string().optional(),
+  subject: z.string().min(1),
+  message: z.string().optional(),
+  bodyHtml: z.string().optional(),
+  fromName: z.string().optional(),
+  attachmentName: z.string().optional(),
+});
 
 export async function POST(req: NextRequest) {
   const clientKey = getClientKey(req);
-  if (!checkRateLimit(`send:${clientKey}`, 5, 60 * 60 * 1000)) {
-    return NextResponse.json({ error: "Send limit reached. Try again in an hour." }, { status: 429 });
+  if (!checkRateLimit(`send:${clientKey}`, 50, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: "Send limit reached. Try again later." }, { status: 429 });
   }
+
+  let recipientEmail = "";
+  let storagePath = "";
 
   try {
     const user = await getCurrentUser();
-    if (!user || !user.google_access_token || !user.google_refresh_token || !user.google_email) {
-      return NextResponse.json({ error: "Gmail not connected" }, { status: 401 });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized. Please log in first." }, { status: 401 });
     }
 
     const body = await req.json();
-    const parsed = sendRequestSchema.safeParse(body);
+    const parsed = sendPayloadSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid request data" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid request payload format" }, { status: 400 });
     }
 
-    const { items, fromName } = parsed.data;
-    const results: { to: string; ok: boolean; error?: string }[] = [];
+    const { path, to, name, subject, message, bodyHtml, fromName, attachmentName } = parsed.data;
+    recipientEmail = to;
+    storagePath = path;
 
-    for (const item of items) {
-      try {
-        await sendCertEmail({
-          accessToken: user.google_access_token,
-          refreshToken: user.google_refresh_token,
-          senderEmail: user.google_email,
-          fromName,
-          ...item,
-        });
-        results.push({ to: item.to, ok: true });
-      } catch (err: any) {
-        console.error("SEND ITEM FAILED:", item.to, err.message);
-        results.push({ to: item.to, ok: false, error: "Failed to send" });
-      }
-      await new Promise((r) => setTimeout(r, 3000));
+    // 1. Download certificate PDF from private Supabase Storage "certificates" bucket
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from("certificates")
+      .download(path);
+
+    if (downloadError || !fileData) {
+      console.error("[SEND_DOWNLOAD_ERROR]", { step: "download", recipient: to, path, error: downloadError?.message });
+      return NextResponse.json(
+        { error: `Failed to fetch certificate from storage: ${downloadError?.message || "File not found"}` },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ results });
+    const arrayBuffer = await fileData.arrayBuffer();
+    const pdfBuffer = Buffer.from(arrayBuffer);
+
+    // 2. Format HTML email body
+    const html = bodyHtml || message || `<p>Hi ${name || "there"},</p><p>Please find your certificate attached.</p>`;
+
+    // 3. Dispatch full-quality PDF attachment via Resend
+    await sendCertEmailViaResend({
+      to,
+      subject,
+      bodyHtml: html,
+      fromName,
+      pdfBuffer,
+      attachmentName: attachmentName || `certificate_${(name || "recipient").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`,
+    });
+
+    // 4. Delete temporary storage file after successful email delivery
+    const { error: removeError } = await supabase.storage
+      .from("certificates")
+      .remove([path]);
+
+    if (removeError) {
+      console.error("[SEND_CLEANUP_WARNING]", { step: "delete_after_send", recipient: to, path, error: removeError.message });
+    }
+
+    return NextResponse.json({ ok: true, recipient: to });
   } catch (err: any) {
-    console.error("SEND ROUTE CRASH:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("[SEND_ROUTE_CRASH]", {
+      step: "send_catch",
+      recipient: recipientEmail,
+      path: storagePath,
+      message: err?.message || err,
+    });
+
+    if (storagePath) {
+      try {
+        await supabase.storage.from("certificates").remove([storagePath]);
+      } catch (cleanupErr) {
+        console.error("[CLEANUP_ERROR]", cleanupErr);
+      }
+    }
+
+    return NextResponse.json(
+      { error: err?.message || "Failed to send email" },
+      { status: 500 }
+    );
   }
 }
+
