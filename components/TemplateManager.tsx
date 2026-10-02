@@ -129,10 +129,10 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
   const allCatsHaveTemplate = cats.every((c) => templates[c]);
 
   return (
-    <div className="space-y-6 text-gray-900">
+    <div className="space-y-4 sm:space-y-6 text-gray-900 min-w-0 max-w-full">
       {/* Category Tabs if multiple categories */}
       {cats.length > 1 && (
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 min-w-0 max-w-full">
           {cats.map((c) => (
             <button
               key={c}
@@ -140,7 +140,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                 setActiveCat(c);
                 setEditingFieldId(null);
               }}
-              className={`text-xs px-4 py-2 rounded-xl font-medium border transition-all ${
+              className={`text-xs px-4 py-2.5 min-h-[44px] rounded-xl font-medium border transition-all shrink-0 ${
                 activeCat === c
                   ? "bg-[#F9654B] border-[#F9654B] text-white shadow-xs"
                   : "border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:text-gray-900"
@@ -154,7 +154,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
 
       {/* File Upload Control if no template loaded for active category */}
       {!current && (
-        <div className="bg-white border-2 border-dashed border-gray-300 rounded-2xl p-10 text-center space-y-4 shadow-xs">
+        <div className="bg-white border-2 border-dashed border-gray-300 rounded-2xl p-6 sm:p-10 text-center space-y-4 shadow-xs min-w-0 max-w-full">
           <div className="w-12 h-12 rounded-2xl bg-[#FFF0ED] text-[#F9654B] flex items-center justify-center mx-auto">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -166,7 +166,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
               Select a high-resolution PNG or JPG image template to overlay recipient details onto.
             </p>
           </div>
-          <label className="inline-flex items-center gap-2 bg-[#F9654B] hover:bg-[#E04F34] text-white text-xs font-semibold px-5 py-2.5 rounded-xl cursor-pointer transition-all shadow-xs">
+          <label className="inline-flex items-center justify-center gap-2 bg-[#F9654B] hover:bg-[#E04F34] text-white text-xs sm:text-sm font-semibold px-5 py-3 min-h-[44px] rounded-xl cursor-pointer transition-all shadow-xs">
             <span>Browse Image File</span>
             <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
           </label>
@@ -174,15 +174,15 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
       )}
 
       {current && (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6 min-w-0 max-w-full">
           {/* Top Toolbar */}
-          <div className="bg-[#F9FAFB] border border-gray-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3 max-w-[950px] mx-auto">
-            <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="bg-[#F9FAFB] border border-gray-200 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 max-w-[950px] mx-auto min-w-0 max-w-full">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-semibold text-gray-700">Field to place:</span>
               <select
                 value={selectedFieldKey}
                 onChange={(e) => setSelectedFieldKey(e.target.value)}
-                className="bg-white border border-gray-300 text-gray-900 font-medium rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-[#F9654B]"
+                className="bg-white border border-gray-300 text-gray-900 font-medium rounded-xl px-3 py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 focus:outline-none focus:border-[#F9654B]"
               >
                 {fieldOptions.map((f) => (
                   <option key={f.key} value={f.key} className="bg-white text-gray-900">
@@ -191,41 +191,41 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                 ))}
               </select>
               <span className="text-[11px] text-gray-500">
-                (click anywhere on canvas to place)
+                (tap anywhere on canvas to place)
               </span>
             </div>
 
-            <label className="text-xs text-[#F9654B] hover:underline cursor-pointer font-medium">
+            <label className="text-xs text-[#F9654B] hover:underline cursor-pointer font-medium min-h-[44px] sm:min-h-0 flex items-center">
               Change Image
               <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
             </label>
           </div>
 
-          {/* Large Canvas Container */}
-          <div className="w-full max-w-[950px] mx-auto bg-gray-50 border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-xs flex items-center justify-center overflow-hidden">
+          {/* Canvas Container */}
+          <div className="w-full max-w-[950px] mx-auto bg-gray-50 border border-gray-200 rounded-2xl p-2 sm:p-6 shadow-xs flex items-center justify-center overflow-x-auto min-w-0 max-w-full">
             <canvas
               ref={canvasRef}
               onClick={handleClick}
-              className="w-full h-auto object-contain cursor-crosshair rounded-xl border border-gray-300 bg-white shadow-sm transition-all"
+              className="max-w-full h-auto object-contain cursor-crosshair rounded-xl border border-gray-300 bg-white shadow-sm transition-all"
             />
           </div>
 
-          {/* Field Editing Controls (Light Theme) */}
+          {/* Field Editing Controls */}
           {editingField ? (
-            <div className="bg-[#F9FAFB] border border-gray-200 rounded-2xl p-5 space-y-4 shadow-xs text-gray-900 max-w-[950px] mx-auto">
+            <div className="bg-[#F9FAFB] border border-gray-200 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs text-gray-900 max-w-[950px] mx-auto min-w-0 max-w-full">
               <div className="flex items-center justify-between border-b border-gray-200 pb-3">
-                <span className="text-sm font-bold text-gray-900">
+                <span className="text-xs sm:text-sm font-bold text-gray-900 truncate">
                   Editing: {editingField.label}
                 </span>
                 <button
                   onClick={() => setEditingFieldId(null)}
-                  className="text-xs text-gray-500 hover:text-gray-900 transition-colors"
+                  className="text-xs text-gray-500 hover:text-gray-900 transition-colors p-2 min-h-[44px] sm:min-h-0"
                 >
                   Close ✕
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="text-xs text-gray-700 font-medium mb-1.5 block">Font size (px)</label>
                   <input
@@ -234,7 +234,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                     max={200}
                     value={editingField.fontSize}
                     onChange={(e) => updateField(editingField.id, { fontSize: Number(e.target.value) })}
-                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#F9654B]"
+                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B]"
                   />
                 </div>
 
@@ -244,7 +244,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                     type="color"
                     value={editingField.color}
                     onChange={(e) => updateField(editingField.id, { color: e.target.value })}
-                    className="w-full h-10 bg-white border border-gray-300 rounded-xl px-1.5 py-1 cursor-pointer"
+                    className="w-full h-11 bg-white border border-gray-300 rounded-xl px-1.5 py-1 cursor-pointer"
                   />
                 </div>
 
@@ -253,7 +253,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                   <select
                     value={editingField.fontFamily}
                     onChange={(e) => updateField(editingField.id, { fontFamily: e.target.value })}
-                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#F9654B]"
+                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B]"
                   >
                     {FONT_CHOICES.map((f) => (
                       <option key={f} value={f} className="bg-white text-gray-900" style={{ fontFamily: f }}>
@@ -268,7 +268,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                   <select
                     value={editingField.align}
                     onChange={(e) => updateField(editingField.id, { align: e.target.value as TextField["align"] })}
-                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#F9654B]"
+                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B]"
                   >
                     <option value="left" className="bg-white text-gray-900">Left</option>
                     <option value="center" className="bg-white text-gray-900">Center</option>
@@ -284,7 +284,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                     type="number"
                     value={Math.round(editingField.x)}
                     onChange={(e) => updateField(editingField.id, { x: Number(e.target.value) })}
-                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#F9654B]"
+                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B]"
                   />
                 </div>
                 <div>
@@ -293,7 +293,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                     type="number"
                     value={Math.round(editingField.y)}
                     onChange={(e) => updateField(editingField.id, { y: Number(e.target.value) })}
-                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#F9654B]"
+                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B]"
                   />
                 </div>
               </div>
@@ -301,27 +301,27 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
               <div className="pt-2 flex justify-between items-center border-t border-gray-200">
                 <button
                   onClick={() => removeField(editingField.id)}
-                  className="text-xs text-rose-600 hover:text-rose-700 font-medium transition-colors"
+                  className="text-xs text-rose-600 hover:text-rose-700 font-medium transition-colors p-2 min-h-[44px] sm:min-h-0"
                 >
                   Remove field
                 </button>
                 <button
                   onClick={() => setEditingFieldId(null)}
-                  className="text-xs bg-white text-gray-800 px-3 py-1.5 rounded-lg border border-gray-300 hover:border-gray-400 font-medium"
+                  className="text-xs bg-white text-gray-800 px-4 py-2.5 min-h-[44px] sm:min-h-0 rounded-lg border border-gray-300 hover:border-gray-400 font-medium"
                 >
                   Done Editing
                 </button>
               </div>
             </div>
           ) : (
-            <div className="bg-[#F9FAFB] border border-gray-200 rounded-2xl p-4 text-center text-gray-500 text-xs max-w-[950px] mx-auto">
+            <div className="bg-[#F9FAFB] border border-gray-200 rounded-2xl p-4 text-center text-gray-500 text-xs max-w-[950px] mx-auto min-w-0 max-w-full">
               Click any tag on the canvas or in the list below to edit its properties.
             </div>
           )}
 
           {/* List of Placed Fields */}
           {current.fields.length > 0 && (
-            <div className="bg-[#F9FAFB] border border-gray-200 rounded-2xl p-4 space-y-2 max-w-[950px] mx-auto">
+            <div className="bg-[#F9FAFB] border border-gray-200 rounded-2xl p-4 space-y-2 max-w-[950px] mx-auto min-w-0 max-w-full">
               <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                 Placed Fields ({current.fields.length})
               </h4>
@@ -333,7 +333,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                       setEditingFieldId(f.id);
                       draw(current, f.id);
                     }}
-                    className={`w-full flex items-center justify-between text-xs border rounded-xl p-3 transition-all ${
+                    className={`w-full flex items-center justify-between text-xs border rounded-xl p-3 min-h-[44px] transition-all ${
                       editingFieldId === f.id
                         ? "border-[#F9654B] bg-[#FFF0ED] text-[#F9654B] font-medium"
                         : "border-gray-200 bg-white text-gray-800 hover:border-gray-400"
@@ -349,12 +349,15 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
         </div>
       )}
 
-      {/* Save Action Button */}
-      <div className="pt-2 flex justify-end max-w-[950px] mx-auto">
+      {/* Save Action Button (Fixed/Sticky on Mobile) */}
+      <div
+        className="fixed sm:relative bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md sm:bg-transparent border-t sm:border-0 border-gray-200 p-3 sm:p-0 flex justify-end max-w-[950px] mx-auto shadow-lg sm:shadow-none"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
+      >
         <button
           onClick={handleDone}
           disabled={!allCatsHaveTemplate}
-          className="bg-[#F9654B] hover:bg-[#E04F34] text-white font-medium px-6 py-3 rounded-xl disabled:opacity-40 transition-all text-sm shadow-xs"
+          className="w-full sm:w-auto bg-[#F9654B] hover:bg-[#E04F34] text-white font-medium px-6 py-3 min-h-[44px] rounded-xl disabled:opacity-40 transition-all text-sm shadow-xs cursor-pointer"
         >
           {allCatsHaveTemplate ? "Save templates & proceed" : `Upload template for all categories (${Object.keys(templates).length}/${cats.length})`}
         </button>

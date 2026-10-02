@@ -72,7 +72,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-[#FFF0ED]/40 via-blue-50/30 to-transparent blur-3xl pointer-events-none z-0" />
 
       {/* Centered Floating Auth Card */}
-      <div className="relative z-10 w-full max-w-[440px] bg-white border border-gray-200 rounded-2xl p-7 sm:p-9 shadow-xs transition-all duration-300">
+      <div className="relative z-10 w-full max-w-[440px] bg-white border border-gray-200 rounded-2xl p-5 sm:p-9 shadow-xs transition-all duration-300 min-w-0">
         
         {/* App Branding Header (Matches Main Application Header) */}
         <div className="flex items-center justify-center gap-2 mb-2">
@@ -85,7 +85,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
         </div>
 
         {/* Title & Subtitle */}
-        <h1 className="text-2xl font-bold text-gray-900 text-center tracking-tight mt-3 mb-1.5">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 text-center tracking-tight mt-3 mb-1.5">
           {mode === "login" ? "Welcome back" : "Create your account"}
         </h1>
         <p className="text-xs sm:text-sm text-gray-500 text-center mb-6">
@@ -97,7 +97,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
         {/* Google OAuth Option */}
         <a
           href="/api/auth/google"
-          className="flex items-center justify-center gap-3 w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 transition-all text-xs sm:text-sm font-medium text-gray-700 shadow-xs mb-5 group"
+          className="flex items-center justify-center gap-3 w-full py-3 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 transition-all text-xs sm:text-sm font-medium text-gray-700 shadow-xs mb-5 group min-h-[44px]"
         >
           <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
             <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z" />
@@ -135,7 +135,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Enter your name"
                   required
-                  className="w-full bg-white border border-gray-300 rounded-xl py-2.5 pl-10 pr-4 text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#F9654B] focus:ring-1 focus:ring-[#F9654B] transition-all"
+                  className="w-full bg-white border border-gray-300 rounded-xl py-2.5 pl-10 pr-4 text-base sm:text-sm min-h-[44px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#F9654B] focus:ring-1 focus:ring-[#F9654B] transition-all"
                 />
               </div>
             </div>
@@ -156,7 +156,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
                 required
-                className="w-full bg-white border border-gray-300 rounded-xl py-2.5 pl-10 pr-4 text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#F9654B] focus:ring-1 focus:ring-[#F9654B] transition-all"
+                className="w-full bg-white border border-gray-300 rounded-xl py-2.5 pl-10 pr-4 text-base sm:text-sm min-h-[44px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#F9654B] focus:ring-1 focus:ring-[#F9654B] transition-all"
               />
             </div>
           </div>
@@ -177,12 +177,12 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
                 placeholder="Enter your password"
                 required
                 minLength={6}
-                className="w-full bg-white border border-gray-300 rounded-xl py-2.5 pl-10 pr-10 text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#F9654B] focus:ring-1 focus:ring-[#F9654B] transition-all"
+                className="w-full bg-white border border-gray-300 rounded-xl py-2.5 pl-10 pr-10 text-base sm:text-sm min-h-[44px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#F9654B] focus:ring-1 focus:ring-[#F9654B] transition-all"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                className="absolute right-3 text-gray-400 hover:text-gray-600 transition-colors p-2 min-h-[44px] flex items-center justify-center"
                 aria-label="Toggle password visibility"
               >
                 {showPassword ? (
@@ -215,7 +215,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
                   placeholder="Confirm your password"
                   required
                   minLength={6}
-                  className="w-full bg-white border border-gray-300 rounded-xl py-2.5 pl-10 pr-4 text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#F9654B] focus:ring-1 focus:ring-[#F9654B] transition-all"
+                  className="w-full bg-white border border-gray-300 rounded-xl py-2.5 pl-10 pr-4 text-base sm:text-sm min-h-[44px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#F9654B] focus:ring-1 focus:ring-[#F9654B] transition-all"
                 />
               </div>
             </div>
@@ -223,8 +223,8 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
 
           {/* Remember Me & Forgot Password Row */}
           {mode === "login" && (
-            <div className="flex items-center justify-between text-xs sm:text-sm pt-0.5 pb-0.5">
-              <label className="flex items-center gap-2 cursor-pointer text-gray-600 hover:text-gray-800 transition-colors select-none">
+            <div className="flex items-center justify-between text-xs sm:text-sm pt-0.5 pb-0.5 min-h-[44px]">
+              <label className="flex items-center gap-2 cursor-pointer text-gray-600 hover:text-gray-800 transition-colors select-none py-1">
                 <input
                   type="checkbox"
                   checked={rememberMe}
@@ -235,7 +235,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
               </label>
               <a
                 href="/forgot-password"
-                className="text-xs text-[#F9654B] hover:underline font-medium"
+                className="text-xs text-[#F9654B] hover:underline font-medium py-1"
               >
                 Forgot password?
               </a>
@@ -251,7 +251,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-[#F9654B] hover:bg-[#E04F34] text-white text-xs sm:text-sm font-medium py-3 shadow-xs transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-1"
+            className="w-full rounded-xl bg-[#F9654B] hover:bg-[#E04F34] text-white text-xs sm:text-sm font-medium py-3 min-h-[44px] shadow-xs transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-1"
           >
             <span>{loading ? "Verifying..." : mode === "login" ? "Sign In" : "Create account"}</span>
             {!loading && (

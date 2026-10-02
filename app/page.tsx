@@ -149,52 +149,98 @@ export default function Home() {
       </header>
 
       {/* 2. WORKFLOW STEPPER */}
-      <div className="py-5 bg-white border-b border-gray-100 flex items-center justify-center">
-        <div className="flex items-center justify-center gap-1.5 sm:gap-3 text-xs select-none">
-          {STEPS.map((step, idx) => {
-            const isCurrent = idx === currentStepIndex;
-
-            return (
-              <div key={step.num} className="flex items-center">
+      <div className="bg-white border-b border-gray-100 sticky top-11 z-20">
+        {/* Mobile Step Header (Compact + Thin Progress Bar + Horizontal Pill Scroll) */}
+        <div className="block sm:hidden border-b border-gray-100">
+          <div className="px-4 py-2.5 flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-900">
+              Step {currentStepIndex + 1} of 5 — <span className="text-[#F9654B]">{STEPS[currentStepIndex].label}</span>
+            </span>
+            <span className="text-[11px] text-gray-400 font-medium">
+              {Math.round(((currentStepIndex + 1) / 5) * 100)}%
+            </span>
+          </div>
+          {/* Thin Progress Bar */}
+          <div className="w-full h-1 bg-gray-100 overflow-hidden">
+            <div
+              className="h-full bg-[#F9654B] transition-all duration-300"
+              style={{ width: `${((currentStepIndex + 1) / 5) * 100}%` }}
+            />
+          </div>
+          {/* Horizontally Scrollable Step Pills (No Clipping) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar px-3 py-2 min-w-0 max-w-full">
+            {STEPS.map((step, idx) => {
+              const isCurrent = idx === currentStepIndex;
+              return (
                 <button
+                  key={step.num}
                   onClick={() => {
                     if (recipients.length > 0) setActiveWorkflowStep(idx);
                   }}
-                  className="flex items-center gap-1.5 text-left focus:outline-none"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs shrink-0 transition-colors ${
+                    isCurrent
+                      ? "bg-[#FFF0ED] text-[#F9654B] font-semibold border border-[#F9654B]/30"
+                      : "bg-gray-50 text-gray-500 font-normal border border-gray-200"
+                  }`}
                 >
-                  <div
-                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-medium transition-colors ${
-                      isCurrent
-                        ? "border border-gray-900 bg-white text-gray-900"
-                        : "border border-gray-300 bg-white text-gray-400"
-                    }`}
-                  >
+                  <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-bold ${isCurrent ? "bg-[#F9654B] text-white" : "bg-gray-200 text-gray-600"}`}>
                     {step.num}
-                  </div>
-                  <span
-                    className={`text-xs ${
-                      isCurrent ? "font-semibold text-gray-900" : "text-gray-400 font-normal"
-                    }`}
-                  >
-                    {step.label}
                   </span>
+                  <span>{step.label}</span>
                 </button>
+              );
+            })}
+          </div>
+        </div>
 
-                {idx < STEPS.length - 1 && (
-                  <svg className="w-3.5 h-3.5 text-gray-300 mx-2 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                )}
-              </div>
-            );
-          })}
+        {/* Desktop Stepper */}
+        <div className="hidden sm:flex py-5 items-center justify-center">
+          <div className="flex items-center justify-center gap-1.5 sm:gap-3 text-xs select-none">
+            {STEPS.map((step, idx) => {
+              const isCurrent = idx === currentStepIndex;
+
+              return (
+                <div key={step.num} className="flex items-center">
+                  <button
+                    onClick={() => {
+                      if (recipients.length > 0) setActiveWorkflowStep(idx);
+                    }}
+                    className="flex items-center gap-1.5 text-left focus:outline-none"
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-medium transition-colors ${
+                        isCurrent
+                          ? "border border-gray-900 bg-white text-gray-900"
+                          : "border border-gray-300 bg-white text-gray-400"
+                      }`}
+                    >
+                      {step.num}
+                    </div>
+                    <span
+                      className={`text-xs ${
+                        isCurrent ? "font-semibold text-gray-900" : "text-gray-400 font-normal"
+                      }`}
+                    >
+                      {step.label}
+                    </span>
+                  </button>
+
+                  {idx < STEPS.length - 1 && (
+                    <svg className="w-3.5 h-3.5 text-gray-300 mx-2 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* 3. MAIN CONTENT */}
       {/* STEP 1 INITIAL DATA IMPORT VIEW */}
       {activeWorkflowStep === 0 && (
-        <div className="w-full max-w-[505px] mx-auto px-4 pt-9 pb-16">
+        <div className="w-full max-w-[505px] mx-auto px-3 sm:px-4 pt-6 sm:pt-9 pb-36 sm:pb-16 min-w-0 max-w-full">
           {/* Step Pill */}
           <div className="text-center mb-3">
             <span className="px-3 py-1 bg-[#FFF0ED] text-[#F9654B] text-[11px] font-semibold rounded-full inline-block">
@@ -203,18 +249,18 @@ export default function Home() {
           </div>
 
           {/* Main Heading & Subtitle */}
-          <h1 className="text-2xl sm:text-[28px] font-bold text-gray-900 text-center tracking-tight mb-2">
+          <h1 className="text-xl sm:text-[28px] font-bold text-gray-900 text-center tracking-tight mb-2 px-2">
             Add your recipient list
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 text-center max-w-[420px] mx-auto leading-relaxed mb-6">
+          <p className="text-xs sm:text-sm text-gray-500 text-center max-w-[420px] mx-auto leading-relaxed mb-6 px-2">
             Upload a spreadsheet with the names and details you want to use on your certificates.
           </p>
 
           {/* 4. IMPORT METHOD TABS */}
-          <div className="flex items-center justify-center gap-8 border-b border-gray-200 mb-6">
+          <div className="flex items-center justify-center gap-6 sm:gap-8 border-b border-gray-200 mb-6">
             <button
               onClick={() => setImportMode("file")}
-              className={`pb-2.5 text-xs sm:text-sm font-medium flex items-center gap-2 transition-colors ${
+              className={`pb-2.5 text-xs sm:text-sm font-medium flex items-center gap-2 transition-colors min-h-[44px] ${
                 importMode === "file"
                   ? "text-gray-900 border-b-2 border-[#F9654B]"
                   : "text-gray-400 hover:text-gray-600"
@@ -228,7 +274,7 @@ export default function Home() {
             
             <button
               onClick={() => setImportMode("sheet")}
-              className={`pb-2.5 text-xs sm:text-sm font-medium flex items-center gap-2 transition-colors ${
+              className={`pb-2.5 text-xs sm:text-sm font-medium flex items-center gap-2 transition-colors min-h-[44px] ${
                 importMode === "sheet"
                   ? "text-gray-900 border-b-2 border-[#F9654B]"
                   : "text-gray-400 hover:text-gray-600"
@@ -261,7 +307,7 @@ export default function Home() {
           {/* Summary of parsed recipients if uploaded */}
           {recipients.length > 0 && (
             <div className="mt-5 p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2 text-left">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between text-xs flex-wrap gap-1">
                 <span className="font-semibold text-emerald-800">
                   ✓ {validCount} recipient{validCount === 1 ? "" : "s"} loaded successfully
                 </span>
@@ -275,16 +321,19 @@ export default function Home() {
             </div>
           )}
 
-          {/* 7. BOTTOM ACTION AREA */}
-          <div className="border-t border-gray-200 my-6" />
+          {/* 7. BOTTOM STICKY ACTION AREA (Safe Area Padding for Mobile) */}
+          <div className="border-t border-gray-200 my-6 hidden sm:block" />
           
-          <div className="flex justify-end">
+          <div
+            className="fixed sm:relative bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md sm:bg-transparent border-t sm:border-0 border-gray-200 p-3 sm:p-0 flex justify-end shadow-lg sm:shadow-none"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
+          >
             <button
               onClick={() => setActiveWorkflowStep(1)}
               disabled={recipients.length === 0}
-              className="bg-[#F9654B] hover:bg-[#E04F34] text-white text-xs sm:text-sm font-medium px-5 py-2.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto bg-[#F9654B] hover:bg-[#E04F34] text-white text-sm font-medium px-6 py-3 min-h-[44px] rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
-              Continue to design  →
+              Continue to design →
             </button>
           </div>
         </div>
@@ -292,11 +341,11 @@ export default function Home() {
 
       {/* STEP 2+ WIDE WORKSPACE VERTICAL STACK */}
       {activeWorkflowStep >= 1 && (
-        <div className="w-[90%] max-w-[1450px] mx-auto px-4 sm:px-8 py-8 space-y-8">
+        <div className="w-full max-w-[1450px] mx-auto px-3 sm:px-8 py-4 sm:py-8 space-y-4 sm:space-y-8 pb-36 sm:pb-8 min-w-0 max-w-full">
           {/* Workspace Subheader */}
-          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-200 pb-4 gap-3">
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="px-3 py-0.5 bg-[#FFF0ED] text-[#F9654B] text-xs font-semibold rounded-full">
                   Step 2 of 5
                 </span>
@@ -310,16 +359,16 @@ export default function Home() {
             </div>
             <button
               onClick={() => setActiveWorkflowStep(0)}
-              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg px-3.5 py-1.5 font-medium transition-colors"
+              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg px-3.5 py-2 min-h-[44px] sm:min-h-0 font-medium transition-colors w-full sm:w-auto text-center"
             >
               ← Back to Recipient List
             </button>
           </div>
 
           {/* Section 1: Template Manager Workspace */}
-          <section className="w-full bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 shadow-xs text-gray-900">
-            <div className="mb-6 border-b border-gray-200 pb-4">
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Canvas & Tag Placement Workspace</h2>
+          <section className="w-full bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs text-gray-900 min-w-0 max-w-full">
+            <div className="mb-4 sm:mb-6 border-b border-gray-200 pb-4">
+              <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Canvas & Tag Placement Workspace</h2>
               <p className="text-xs text-gray-500">
                 {categories.length > 1
                   ? `${categories.length} cohorts detected. Assign a template layout for each group.`
@@ -330,19 +379,19 @@ export default function Home() {
           </section>
 
           {/* Section 2: Local Generation (Full Width Stacked Below Canvas) */}
-          <section className="w-full bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 shadow-xs text-gray-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <section className="w-full bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs text-gray-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4 min-w-0 max-w-full">
             <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Local Generation Engine</h2>
+              <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Local Generation Engine</h2>
               <p className="text-xs text-gray-500">
                 Renders high-DPI PDFs completely on client browser threads without sending template artwork to remote servers.
               </p>
             </div>
 
-            <div className="shrink-0">
+            <div className="shrink-0 w-full sm:w-auto">
               <button
                 onClick={handleGenerate}
                 disabled={templates.length === 0 || recipients.length === 0 || generating}
-                className="bg-[#F9654B] hover:bg-[#E04F34] text-white disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold px-6 py-3 rounded-xl transition-all shadow-xs"
+                className="w-full sm:w-auto bg-[#F9654B] hover:bg-[#E04F34] text-white disabled:opacity-40 disabled:cursor-not-allowed text-xs sm:text-sm font-semibold px-6 py-3 min-h-[44px] rounded-xl transition-all shadow-xs cursor-pointer"
               >
                 {generating ? "Building Assets..." : `Generate ${validCount} Output Assets`}
               </button>
@@ -356,14 +405,14 @@ export default function Home() {
           )}
 
           {/* Section 3: Inspection Grid (Full Width Stacked Below Local Generation) */}
-          <section className="w-full bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 shadow-xs text-gray-900">
-            <div className="flex items-center justify-between mb-6 border-b border-gray-200 pb-4">
+          <section className="w-full bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs text-gray-900 min-w-0 max-w-full">
+            <div className="flex items-center justify-between mb-4 sm:mb-6 border-b border-gray-200 pb-4">
               <div>
-                <h2 className="text-lg font-bold text-gray-900 mb-1">Inspection Grid</h2>
+                <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Inspection Grid</h2>
                 <p className="text-xs text-gray-500">Preview all generated certificate thumbnails before dispatching.</p>
               </div>
               {certs.length > 0 && (
-                <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-lg">
+                <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-lg shrink-0">
                   {certs.length} Rendered
                 </span>
               )}
@@ -372,16 +421,16 @@ export default function Home() {
             {certs.length > 0 ? (
               <PreviewGrid certs={certs} recipients={recipients} />
             ) : (
-              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-10 text-center text-xs text-gray-500">
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 sm:p-10 text-center text-xs text-gray-500">
                 Certificates will be displayed here after running local generation.
               </div>
             )}
           </section>
 
           {/* Section 4: Direct Delivery (Full Width Stacked Below Inspection Grid) */}
-          <section className="w-full bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 shadow-xs text-gray-900">
-            <div className="border-b border-gray-200 pb-4 mb-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Direct Delivery Engine</h2>
+          <section className="w-full bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs text-gray-900 min-w-0 max-w-full">
+            <div className="border-b border-gray-200 pb-4 mb-4 sm:mb-6">
+              <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Direct Delivery Engine</h2>
               <p className="text-xs text-gray-500">Batch email generated certificate PDFs directly to recipient mailboxes.</p>
               {!googleConnected && (
                 <p className="text-xs text-rose-600 mt-2 font-medium">
@@ -393,6 +442,7 @@ export default function Home() {
           </section>
         </div>
       )}
+
       </div>
     </main>
   );

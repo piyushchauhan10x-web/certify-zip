@@ -139,14 +139,14 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
   }
 
   return (
-    <div className="space-y-4 text-gray-900">
+    <div className="space-y-4 text-gray-900 min-w-0 max-w-full">
       <div>
         <label className="text-xs font-semibold text-gray-700 mb-1.5 block">From name (optional)</label>
         <input
           value={fromName}
           onChange={(e) => setFromName(e.target.value)}
           placeholder="e.g. Certify Events Team"
-          className="w-full bg-white border border-gray-300 text-gray-900 placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#F9654B] transition-colors"
+          className="w-full bg-white border border-gray-300 text-gray-900 placeholder-gray-400 rounded-xl px-4 py-3 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B] transition-colors"
         />
       </div>
 
@@ -155,7 +155,7 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
         <input
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
-          className="w-full bg-white border border-gray-300 text-gray-900 placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#F9654B] transition-colors"
+          className="w-full bg-white border border-gray-300 text-gray-900 placeholder-gray-400 rounded-xl px-4 py-3 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B] transition-colors"
           placeholder="Subject"
         />
       </div>
@@ -165,7 +165,7 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          className="w-full bg-white border border-gray-300 text-gray-900 placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#F9654B] transition-colors"
+          className="w-full bg-white border border-gray-300 text-gray-900 placeholder-gray-400 rounded-xl px-4 py-3 text-base sm:text-sm focus:outline-none focus:border-[#F9654B] transition-colors"
           rows={3}
           placeholder="Body ({name} placeholder supported)"
         />
@@ -175,7 +175,7 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
         <button
           onClick={handleSend}
           disabled={sending || certs.length === 0}
-          className="bg-[#F9654B] hover:bg-[#E04F34] text-white font-medium text-sm px-6 py-3 rounded-xl disabled:opacity-40 transition-all shadow-xs"
+          className="w-full sm:w-auto bg-[#F9654B] hover:bg-[#E04F34] text-white font-medium text-sm px-6 py-3 min-h-[44px] rounded-xl disabled:opacity-40 transition-all shadow-xs cursor-pointer flex items-center justify-center"
         >
           {sending ? `Sending emails... ${done}/${certs.length} done` : `Send ${certs.length} certificates`}
         </button>
@@ -188,7 +188,7 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
           {results.map((r, i) => (
             <li key={i} className={`flex items-center gap-2 ${r.ok ? "text-emerald-700 font-medium" : "text-rose-600 font-medium"}`}>
               <span>{r.ok ? "✓" : "✕"}</span>
-              <span>{r.to} — {r.ok ? "sent successfully" : r.error}</span>
+              <span className="truncate">{r.to} — {r.ok ? "sent successfully" : r.error}</span>
             </li>
           ))}
         </ul>
