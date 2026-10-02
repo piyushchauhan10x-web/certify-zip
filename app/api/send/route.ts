@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { supabase } from "@/lib/db";
-import { sendCertEmailViaResend } from "@/lib/email";
+import { sendCertEmailViaResend, sendCertEmailViaGmail } from "@/lib/email";
 import { checkRateLimit, getClientKey } from "@/lib/rateLimit";
 import { z } from "zod";
 
@@ -62,15 +62,34 @@ export async function POST(req: NextRequest) {
     // 2. Format HTML email body
     const html = bodyHtml || message || `<p>Hi ${name || "there"},</p><p>Please find your certificate attached.</p>`;
 
-    // 3. Dispatch full-quality PDF attachment via Resend
-    await sendCertEmailViaResend({
-      to,
-      subject,
-      bodyHtml: html,
-      fromName,
-      pdfBuffer,
-      attachmentName: attachmentName || `certificate_${(name || "recipient").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`,
-    });
+    // 3. Dispatch email: use Gmail API if Google token is connected, otherwise fall back to Resend
+    const hasGoogleToken = Boolean(user.google_access_token && user.google_refresh_token);
+    const attachmentFilename = attachmentName || `certificate_${(name || "recipient").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
+
+    if (hasGoogleToken) {
+      console.log(`[SEND_ROUTE] Dispatching email via Gmail API for recipient: ${to}`);
+      await sendCertEmailViaGmail({
+        accessToken: user.google_access_token!,
+        refreshToken: user.google_refresh_token!,
+        senderEmail: user.google_email || user.email,
+        fromName,
+        to,
+        subject,
+        bodyHtml: html,
+        pdfBuffer,
+        attachmentName: attachmentFilename,
+      });
+    } else {
+      console.log(`[SEND_ROUTE] Google token not present. Falling back to Resend for recipient: ${to}`);
+      await sendCertEmailViaResend({
+        to,
+        subject,
+        bodyHtml: html,
+        fromName,
+        pdfBuffer,
+        attachmentName: attachmentFilename,
+      });
+    }
 
     // 4. Delete temporary storage file after successful email delivery
     const { error: removeError } = await supabase.storage
