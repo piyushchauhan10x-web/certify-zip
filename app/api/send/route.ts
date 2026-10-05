@@ -1,126 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { supabase } from "@/lib/db";
-import { sendCertEmailViaResend, sendCertEmailViaGmail } from "@/lib/email";
+import { sendCertEmail, GmailError } from "@/lib/gmail";
+import { sendCertEmailViaResend, hasVerifiedResendSender } from "@/lib/email";
 import { checkRateLimit, getClientKey } from "@/lib/rateLimit";
 import { z } from "zod";
-
+export const runtime = "nodejs";
 export const maxDuration = 60;
-
 const sendPayloadSchema = z.object({
-  path: z.string().min(1),
-  to: z.string().email(),
-  name: z.string().optional(),
-  subject: z.string().min(1),
-  message: z.string().optional(),
-  bodyHtml: z.string().optional(),
-  fromName: z.string().optional(),
-  attachmentName: z.string().optional(),
+  path: z.string().regex(/^[A-Za-z0-9_-]+\.pdf$/), to: z.string().email(), name: z.string().optional(),
+  subject: z.string().min(1).refine(s => !/[\r\n]/.test(s)), message: z.string().optional(), bodyHtml: z.string().optional(), fromName: z.string().optional(), attachmentName: z.string().optional(),
 });
-
 export async function POST(req: NextRequest) {
-  const clientKey = getClientKey(req);
-  if (!checkRateLimit(`send:${clientKey}`, 50, 60 * 60 * 1000)) {
-    return NextResponse.json({ error: "Send limit reached. Try again later." }, { status: 429 });
-  }
-
-  let recipientEmail = "";
+  let recipient = "unknown";
   let storagePath = "";
-
+  let step = "authenticate";
+  const fail = (code: string, error: string, status: number) => {
+    console.error("[SEND_ERROR]", { step, recipient, code });
+    return NextResponse.json({ code, error }, { status });
+  };
   try {
     const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized. Please log in first." }, { status: 401 });
-    }
-
-    const body = await req.json();
+    if (!user) return fail("NOT_AUTHENTICATED", "Please log in and connect Gmail.", 401);
+    step = "validate";
+    let body;
+    try { body = await req.json(); } catch { return fail("INVALID_PAYLOAD", "Invalid JSON request.", 400); }
     const parsed = sendPayloadSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid request payload format" }, { status: 400 });
-    }
-
+    if (!parsed.success) return fail("INVALID_PAYLOAD", "Invalid request payload format.", 400);
     const { path, to, name, subject, message, bodyHtml, fromName, attachmentName } = parsed.data;
-    recipientEmail = to;
+    recipient = to;
     storagePath = path;
-
-    // 1. Download certificate PDF from private Supabase Storage "certificates" bucket
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from("certificates")
-      .download(path);
-
-    if (downloadError || !fileData) {
-      console.error("[SEND_DOWNLOAD_ERROR]", { step: "download", recipient: to, path, error: downloadError?.message });
-      return NextResponse.json(
-        { error: `Failed to fetch certificate from storage: ${downloadError?.message || "File not found"}` },
-        { status: 500 }
-      );
-    }
-
-    const arrayBuffer = await fileData.arrayBuffer();
-    const pdfBuffer = Buffer.from(arrayBuffer);
-
-    // 2. Format HTML email body
+    step = "rate_limit";
+    if (!checkRateLimit(`send:${user.id}:${getClientKey(req)}`, 50, 60 * 60 * 1000)) return fail("SEND_QUOTA", "Send limit reached. Try again later.", 429);
+    step = "sender_connection";
+    // Partial or expired Gmail connections must reconnect, never switch accounts.
+    const hasGoogleConnection = Boolean(user.google_email || user.google_access_token || user.google_refresh_token || user.google_granted_scopes?.length);
+    if (!hasGoogleConnection && !await hasVerifiedResendSender()) return fail("RECONNECT_GMAIL", "Gmail not connected. Reconnect Gmail to send from your account.", 401);
+    step = "download";
+    const { data, error } = await supabase.storage.from("certificates").download(path);
+    if (error || !data) return fail("PDF_DOWNLOAD_FAILED", "Failed to download the certificate from storage.", 500);
+    const pdfBuffer = Buffer.from(await data.arrayBuffer());
     const html = bodyHtml || message || `<p>Hi ${name || "there"},</p><p>Please find your certificate attached.</p>`;
-
-    // 3. Dispatch email: use Gmail API if Google token is connected, otherwise fall back to Resend
-    const hasGoogleToken = Boolean(user.google_access_token && user.google_refresh_token);
-    const attachmentFilename = attachmentName || `certificate_${(name || "recipient").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
-
-    if (hasGoogleToken) {
-      console.log(`[SEND_ROUTE] Dispatching email via Gmail API for recipient: ${to}`);
-      await sendCertEmailViaGmail({
-        accessToken: user.google_access_token!,
-        refreshToken: user.google_refresh_token!,
-        senderEmail: user.google_email || user.email,
-        fromName,
-        to,
-        subject,
-        bodyHtml: html,
-        pdfBuffer,
-        attachmentName: attachmentFilename,
-      });
+    const filename = attachmentName || `certificate_${(name || "recipient").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
+    step = hasGoogleConnection ? "gmail_send" : "resend_send";
+    if (hasGoogleConnection) {
+      await sendCertEmail({ user, to, subject, bodyHtml: html, fromName, pdfBuffer, attachmentName: filename });
     } else {
-      console.log(`[SEND_ROUTE] Google token not present. Falling back to Resend for recipient: ${to}`);
-      await sendCertEmailViaResend({
-        to,
-        subject,
-        bodyHtml: html,
-        fromName,
-        pdfBuffer,
-        attachmentName: attachmentFilename,
-      });
+      await sendCertEmailViaResend({ to, subject, bodyHtml: html, fromName, pdfBuffer, attachmentName: filename });
     }
-
-    // 4. Delete temporary storage file after successful email delivery
-    const { error: removeError } = await supabase.storage
-      .from("certificates")
-      .remove([path]);
-
-    if (removeError) {
-      console.error("[SEND_CLEANUP_WARNING]", { step: "delete_after_send", recipient: to, path, error: removeError.message });
-    }
-
     return NextResponse.json({ ok: true, recipient: to });
-  } catch (err: any) {
-    console.error("[SEND_ROUTE_CRASH]", {
-      step: "send_catch",
-      recipient: recipientEmail,
-      path: storagePath,
-      message: err?.message || err,
-    });
-
+  } catch (err) {
+    if (err instanceof GmailError) return fail(err.code, err.message, err.status);
+    // Do not log provider exceptions: they can include Authorization headers.
+    return fail("SEND_FAILED", "Could not send the certificate. Try again later.", 500);
+  } finally {
     if (storagePath) {
       try {
-        await supabase.storage.from("certificates").remove([storagePath]);
-      } catch (cleanupErr) {
-        console.error("[CLEANUP_ERROR]", cleanupErr);
+        const { error } = await supabase.storage.from("certificates").remove([storagePath]);
+        if (error) console.error("[SEND_ERROR]", { step: "cleanup", recipient, code: "STORAGE_CLEANUP_FAILED" });
+      } catch {
+        console.error("[SEND_ERROR]", { step: "cleanup", recipient, code: "STORAGE_CLEANUP_FAILED" });
       }
     }
-
-    return NextResponse.json(
-      { error: err?.message || "Failed to send email" },
-      { status: 500 }
-    );
   }
 }
-

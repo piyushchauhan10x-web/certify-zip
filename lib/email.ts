@@ -1,7 +1,4 @@
 import { Resend } from "resend";
-import { google } from "googleapis";
-import { GOOGLE_OAUTH_CONFIG } from "./oauth";
-import { supabase } from "./db";
 
 export async function sendPasswordResetEmail(to: string, resetLink: string) {
   const apiKey = process.env.RESEND_API_KEY;
@@ -54,8 +51,9 @@ export async function sendCertEmailViaResend(p: SendCertParams) {
     throw new Error("RESEND_API_KEY environment variable is missing.");
   }
 
+  if (!await hasVerifiedResendSender()) throw new Error("Connect Gmail or configure a verified sender domain.");
   const resend = new Resend(apiKey);
-  const defaultFrom = process.env.EMAIL_FROM || "Certify <onboarding@resend.dev>";
+  const defaultFrom = process.env.EMAIL_FROM!;
 
   let fromHeader = defaultFrom;
   if (p.fromName) {
@@ -85,90 +83,13 @@ export async function sendCertEmailViaResend(p: SendCertParams) {
   return result;
 }
 
-interface SendCertGmailParams {
-  accessToken: string;
-  refreshToken: string;
-  senderEmail: string;
-  fromName?: string;
-  to: string;
-  subject: string;
-  bodyHtml: string;
-  pdfBuffer: Buffer;
-  attachmentName: string;
+// Disabled by default: certificate emails should come from the user's own Gmail.
+export async function hasVerifiedResendSender(): Promise<boolean> {
+  if (process.env.ENABLE_RESEND_FALLBACK !== "true" || !process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) return false;
+  const email = process.env.EMAIL_FROM.match(/<([^>]+)>/)?.[1] || process.env.EMAIL_FROM.trim();
+  const domain = email.split("@")[1]?.toLowerCase();
+  if (!domain || domain === "resend.dev") return false;
+  const result = await new Resend(process.env.RESEND_API_KEY).domains.list();
+  if (result.error) return false;
+  return Boolean(result.data?.data.some(d => d.name.toLowerCase() === domain && d.status === "verified"));
 }
-
-export async function sendCertEmailViaGmail(p: SendCertGmailParams) {
-  if (!GOOGLE_OAUTH_CONFIG.clientId || !GOOGLE_OAUTH_CONFIG.clientSecret) {
-    console.error("[GMAIL_SEND_ERROR] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET environment variable is missing on server!");
-    throw new Error("Server is missing Google OAuth client credentials.");
-  }
-
-  const oauth2Client = new google.auth.OAuth2(
-    GOOGLE_OAUTH_CONFIG.clientId,
-    GOOGLE_OAUTH_CONFIG.clientSecret,
-    GOOGLE_OAUTH_CONFIG.redirectUri
-  );
-
-  oauth2Client.setCredentials({
-    access_token: p.accessToken,
-    refresh_token: p.refreshToken,
-  });
-
-  oauth2Client.on("tokens", async (tokens) => {
-    if (tokens.access_token) {
-      console.log("[GMAIL_TOKEN_REFRESH] Refreshed Google access token");
-      await supabase
-        .from("users")
-        .update({ google_access_token: tokens.access_token })
-        .eq("google_refresh_token", p.refreshToken);
-    }
-  });
-
-  try {
-    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-    const boundary = "cert_boundary_" + Date.now();
-
-    const fromHeader = p.fromName ? `${p.fromName} <${p.senderEmail}>` : p.senderEmail;
-    const attachmentBase64 = p.pdfBuffer.toString("base64");
-
-    const raw = [
-      `From: ${fromHeader}`,
-      `To: ${p.to}`,
-      `Subject: ${p.subject}`,
-      "MIME-Version: 1.0",
-      `Content-Type: multipart/mixed; boundary="${boundary}"`,
-      "",
-      `--${boundary}`,
-      'Content-Type: text/html; charset="UTF-8"',
-      "",
-      p.bodyHtml,
-      "",
-      `--${boundary}`,
-      `Content-Type: application/pdf; name="${p.attachmentName}"`,
-      "Content-Transfer-Encoding: base64",
-      `Content-Disposition: attachment; filename="${p.attachmentName}"`,
-      "",
-      attachmentBase64,
-      `--${boundary}--`,
-    ].join("\r\n");
-
-    const encodedMessage = Buffer.from(raw)
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-
-    const response = await gmail.users.messages.send({
-      userId: "me",
-      requestBody: { raw: encodedMessage },
-    });
-
-    console.log("[GMAIL_SUCCESS] Email sent via Gmail API to:", p.to, "ID:", response.data.id);
-    return response.data;
-  } catch (err: any) {
-    console.error("[GMAIL_API_ERROR] Failed to send email via Gmail API:", err?.message || err);
-    throw new Error(err?.message || "Gmail API error");
-  }
-}
-
-

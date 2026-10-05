@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
+import { gmailConnected } from '@/lib/gmail';
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -9,7 +10,7 @@ export async function GET() {
   return NextResponse.json({
     loggedIn: true,
     email: user.email,
-    googleConnected: !!user.google_refresh_token,
+    googleConnected: gmailConnected(user),
     googleEmail: user.google_email,
   });
 }

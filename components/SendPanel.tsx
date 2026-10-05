@@ -14,7 +14,7 @@ async function fetchWithTimeout(resource: string, options: RequestInit = {}, tim
     return response;
   } catch (error: any) {
     if (error.name === "AbortError") {
-      throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
+      throw new Error(`Request timed out after ${timeoutMs / 1000}s. Check Gmail Sent before retrying; the email may already have been sent.`);
     }
     throw error;
   } finally {
@@ -27,6 +27,7 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
   const [subject, setSubject] = useState("Your Certificate 🎉");
   const [body, setBody] = useState("Hi {name}, please find your certificate attached.");
   const [sending, setSending] = useState(false);
+  const [reconnect, setReconnect] = useState(false);
   const [done, setDone] = useState(0);
   const [results, setResults] = useState<{ to: string; ok: boolean; error?: string }[]>([]);
 
@@ -36,9 +37,11 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
     setSending(true);
     setDone(0);
     setResults([]);
+    setReconnect(false);
 
     const newResults: { to: string; ok: boolean; error?: string }[] = [];
 
+    try {
     for (let i = 0; i < certs.length; i++) {
       const cert = certs[i];
       const recipient = recMap.get(cert.recipientId);
@@ -60,7 +63,21 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
           let errMessage = errText;
           try {
             const parsed = JSON.parse(errText);
-            if (parsed.error) errMessage = parsed.error;
+            const messages: Record<string, string> = {
+              NOT_AUTHENTICATED: "Please log in and connect Gmail.",
+              RECONNECT_GMAIL: "Gmail is disconnected or expired. Reconnect Gmail to continue.",
+              GMAIL_PERMISSION_MISSING: "Log out, log in again, tick the Gmail permission box",
+              GMAIL_QUOTA: "Gmail sending quota reached. Try again later.",
+              SEND_QUOTA: "Send limit reached. Try again later.",
+              PDF_DOWNLOAD_FAILED: "Could not download the certificate. Try again.",
+              GMAIL_REFRESH_FAILED: "Could not refresh Gmail access. Try again later.",
+              TOKEN_SAVE_FAILED: "Could not save your Gmail connection. Try again later.",
+              SERVER_CONFIGURATION: "Google OAuth is not configured on the server.",
+              GMAIL_SEND_FAILED: "Gmail could not send the certificate. Try again later.",
+              SEND_FAILED: "Could not send the certificate. Try again later.",
+            };
+            if (["NOT_AUTHENTICATED", "RECONNECT_GMAIL", "GMAIL_PERMISSION_MISSING"].includes(parsed.code)) setReconnect(true);
+            errMessage = messages[parsed.code] || parsed.error || errMessage;
           } catch {}
           console.error(`[SEND_ERROR] Upload URL failed for ${recipientEmail}:`, errMessage);
           newResults.push({ to: recipientEmail, ok: false, error: `Upload URL error: ${errMessage}` });
@@ -86,7 +103,21 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
           let errMessage = errText;
           try {
             const parsed = JSON.parse(errText);
-            if (parsed.error) errMessage = parsed.error;
+            const messages: Record<string, string> = {
+              NOT_AUTHENTICATED: "Please log in and connect Gmail.",
+              RECONNECT_GMAIL: "Gmail is disconnected or expired. Reconnect Gmail to continue.",
+              GMAIL_PERMISSION_MISSING: "Log out, log in again, tick the Gmail permission box",
+              GMAIL_QUOTA: "Gmail sending quota reached. Try again later.",
+              SEND_QUOTA: "Send limit reached. Try again later.",
+              PDF_DOWNLOAD_FAILED: "Could not download the certificate. Try again.",
+              GMAIL_REFRESH_FAILED: "Could not refresh Gmail access. Try again later.",
+              TOKEN_SAVE_FAILED: "Could not save your Gmail connection. Try again later.",
+              SERVER_CONFIGURATION: "Google OAuth is not configured on the server.",
+              GMAIL_SEND_FAILED: "Gmail could not send the certificate. Try again later.",
+              SEND_FAILED: "Could not send the certificate. Try again later.",
+            };
+            if (["NOT_AUTHENTICATED", "RECONNECT_GMAIL", "GMAIL_PERMISSION_MISSING"].includes(parsed.code)) setReconnect(true);
+            errMessage = messages[parsed.code] || parsed.error || errMessage;
           } catch {}
           console.error(`[SEND_ERROR] Direct storage upload failed for ${recipientEmail}:`, errMessage);
           newResults.push({ to: recipientEmail, ok: false, error: `Storage upload error: ${errMessage}` });
@@ -116,10 +147,28 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
 
         if (!sendRes.ok) {
           const errText = await sendRes.text();
-          let errMessage = errText;
+          if (sendRes.status === 401 || sendRes.status === 403) setReconnect(true);
+          let errMessage = sendRes.status === 401 ? "Please reconnect Gmail." :
+            sendRes.status === 403 ? "Log out, log in again, tick the Gmail permission box" :
+            sendRes.status === 429 ? "Sending quota reached. Try again later." :
+            "Could not send the certificate. Try again later.";
           try {
             const parsed = JSON.parse(errText);
-            if (parsed.error) errMessage = parsed.error;
+            const messages: Record<string, string> = {
+              NOT_AUTHENTICATED: "Please log in and connect Gmail.",
+              RECONNECT_GMAIL: "Gmail is disconnected or expired. Reconnect Gmail to continue.",
+              GMAIL_PERMISSION_MISSING: "Log out, log in again, tick the Gmail permission box",
+              GMAIL_QUOTA: "Gmail sending quota reached. Try again later.",
+              SEND_QUOTA: "Send limit reached. Try again later.",
+              PDF_DOWNLOAD_FAILED: "Could not download the certificate. Try again.",
+              GMAIL_REFRESH_FAILED: "Could not refresh Gmail access. Try again later.",
+              TOKEN_SAVE_FAILED: "Could not save your Gmail connection. Try again later.",
+              SERVER_CONFIGURATION: "Google OAuth is not configured on the server.",
+              GMAIL_SEND_FAILED: "Gmail could not send the certificate. Try again later.",
+              SEND_FAILED: "Could not send the certificate. Try again later.",
+            };
+            if (["NOT_AUTHENTICATED", "RECONNECT_GMAIL", "GMAIL_PERMISSION_MISSING"].includes(parsed.code)) setReconnect(true);
+            errMessage = messages[parsed.code] || parsed.error || errMessage;
           } catch {}
           console.error(`[SEND_ERROR] Send route failed for ${recipientEmail}:`, errMessage);
           newResults.push({ to: recipientEmail, ok: false, error: errMessage });
@@ -135,7 +184,9 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
       setDone(i + 1);
     }
 
-    setSending(false);
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -181,6 +232,9 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
         </button>
       </div>
 
+      {reconnect && (
+        <a href="/api/auth/google" className="text-sm font-semibold text-[#F9654B] underline">Reconnect Gmail</a>
+      )}
       {sending && <ProgressBar done={done} total={certs.length} />}
       
       {results.length > 0 && (
@@ -188,7 +242,7 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
           {results.map((r, i) => (
             <li key={i} className={`flex items-center gap-2 ${r.ok ? "text-emerald-700 font-medium" : "text-rose-600 font-medium"}`}>
               <span>{r.ok ? "✓" : "✕"}</span>
-              <span className="truncate">{r.to} — {r.ok ? "sent successfully" : r.error}</span>
+              <span className="break-words">{r.to} — {r.ok ? "sent successfully" : r.error}</span>
             </li>
           ))}
         </ul>

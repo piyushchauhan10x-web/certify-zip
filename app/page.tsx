@@ -29,6 +29,7 @@ export default function Home() {
   const [userEmail, setUserEmail] = useState("");
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [importMode, setImportMode] = useState<"file" | "sheet">("file");
+  const [gmailDenied, setGmailDenied] = useState(false);
 
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [templates, setTemplates] = useState<TemplateConfig[]>([]);
@@ -38,10 +39,18 @@ export default function Home() {
   const [activeWorkflowStep, setActiveWorkflowStep] = useState<number>(0);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (["denied", "reconnect"].includes(params.get("gmail") || "")) {
+        setGmailDenied(true);
+      }
+    }
+
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((data) => {
         if (!data.loggedIn) {
+          if (new URLSearchParams(window.location.search).get("gmail") === "denied") return;
           router.push("/login");
           return;
         }
@@ -66,7 +75,12 @@ export default function Home() {
     setGenerating(false);
   }
 
-  if (!authChecked) return null;
+  if (!authChecked) return gmailDenied ? (
+    <div className="max-w-xl mx-auto p-6 text-amber-900">
+      <p>Tick the Gmail permission box on the Google screen</p>
+      <a href="/api/auth/google" className="text-sm font-semibold text-[#F9654B] underline">Reconnect Gmail</a>
+    </div>
+  ) : null;
 
   const validCount = recipients.filter((r) => r.status !== "failed").length;
   const failedCount = recipients.length - validCount;
@@ -79,7 +93,7 @@ export default function Home() {
   const avatarInitials = "PC";
 
   return (
-    <main className="min-h-screen bg-[#F8FAFC] text-gray-900 font-sans selection:bg-[#F9654B]/20 selection:text-[#F9654B] relative">
+    <main className="min-h-screen bg-[#F8FAFC] text-gray-900 font-sans selection:bg-[#F9654B]/20 selection:text-[#F9654B] relative overflow-x-hidden w-full max-w-full min-w-0">
       {/* Decorative Subtle Certificate Line-Art Background */}
       <div 
         className="fixed inset-0 pointer-events-none z-0 opacity-60"
@@ -147,6 +161,31 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {/* GMAIL DENIED PERMISSION WARNING BANNER */}
+      {gmailDenied && (
+        <div className="w-full max-w-4xl mx-auto px-4 pt-4 relative z-20">
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">⚠️</span>
+              <div>
+                <p className="text-xs sm:text-sm font-bold text-amber-900">
+                  Tick the Gmail permission box on the Google screen
+                </p>
+                <p className="text-xs text-amber-700">
+                  Certify requires permission to send emails on your behalf to dispatch certificates through your Gmail account.
+                </p>
+              </div>
+            </div>
+            <a
+              href="/api/auth/google"
+              className="bg-[#F9654B] hover:bg-[#E04F34] text-white text-xs font-semibold px-4 py-2.5 min-h-[44px] sm:min-h-0 rounded-xl transition-colors shrink-0 flex items-center justify-center shadow-xs"
+            >
+              Reconnect
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* 2. WORKFLOW STEPPER */}
       <div className="bg-white border-b border-gray-100 sticky top-11 z-20">
