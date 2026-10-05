@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { timingSafeEqual } from "crypto";
-import { getBaseUrl, getRedirectUri, GOOGLE_OAUTH_CONFIG, GMAIL_SEND_SCOPE, authCookieOptions } from "@/lib/oauth";
+import { GMAIL_SEND_SCOPE, authCookieOptions } from "@/lib/oauth";
 import { supabase } from "@/lib/db";
 import { createSessionToken, hashPassword, getCurrentUser } from "@/lib/auth";
 import { nanoid } from "nanoid";
-import { AppConfigurationError, requireGoogleCredentials } from "@/lib/appUrl";
+import { AppConfigurationError, getGoogleLoginConfig, GoogleLoginConfig } from "@/lib/appUrl";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -13,10 +13,11 @@ export async function GET(req: NextRequest) {
   let baseUrl: string;
   let redirectUri: string;
   let cookieOptions: ReturnType<typeof authCookieOptions>;
+  let config: GoogleLoginConfig;
   try {
-    requireGoogleCredentials();
-    baseUrl = getBaseUrl(req);
-    redirectUri = getRedirectUri(req);
+    config = getGoogleLoginConfig(req);
+    baseUrl = config.baseUrl;
+    redirectUri = config.redirectUri;
     cookieOptions = authCookieOptions(req);
   } catch (err) {
     const error = err instanceof AppConfigurationError ? err.message : "Google callback is not configured.";
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   if (!code) return redirect("/login?error=oauth_failed");
   try {
-    const client = new google.auth.OAuth2(GOOGLE_OAUTH_CONFIG.clientId, GOOGLE_OAUTH_CONFIG.clientSecret, redirectUri);
+    const client = new google.auth.OAuth2(config.clientId, config.clientSecret, redirectUri);
     const { tokens } = await client.getToken(code);
     client.setCredentials(tokens);
     const { data: profile } = await google.oauth2({ version: "v2", auth: client }).userinfo.get();

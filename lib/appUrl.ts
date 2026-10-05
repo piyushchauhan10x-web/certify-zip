@@ -4,7 +4,7 @@ type UrlRequest = { headers: Headers };
 export class AppConfigurationError extends Error {}
 
 export function cleanEnvValue(value?: string): string {
-  return (value || "").trim().replace(/^(["'])(.*)\1$/, "$2").trim();
+  return (value || "").trim().replace(/^(["'])(.*)\1$/, "$2").trim().replace(/\/+$/, "");
 }
 
 function origin(value: string, source: string): string {
@@ -63,4 +63,39 @@ export function authCookieOptions(req?: UrlRequest) {
 export function requireGoogleCredentials() {
   const missing = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"].filter(key => !cleanEnvValue(process.env[key]));
   if (missing.length) throw new AppConfigurationError(`Missing env: ${missing.join(", ")}`);
+}
+
+export interface GoogleLoginConfig {
+  clientId: string;
+  clientSecret: string;
+  baseUrl: string;
+  redirectUri: string;
+}
+
+// Called by the handlers: no environment values are captured at module load.
+export function getGoogleLoginConfig(req: UrlRequest): GoogleLoginConfig {
+  const clientId = cleanEnvValue(process.env.GOOGLE_CLIENT_ID);
+  const clientSecret = cleanEnvValue(process.env.GOOGLE_CLIENT_SECRET);
+  const missing: string[] = [];
+  const invalid: string[] = [];
+  if (!clientId) missing.push("GOOGLE_CLIENT_ID");
+  if (!clientSecret) missing.push("GOOGLE_CLIENT_SECRET");
+
+  let baseUrl = "";
+  try { baseUrl = getAppUrl(req); } catch (err) {
+    if (!(err instanceof AppConfigurationError)) throw err;
+    if (err.message.startsWith("Missing env:")) missing.push("APP_URL");
+    else invalid.push(err.message);
+  }
+  let redirectUri = "";
+  // A missing redirect override is valid whenever the base URL can be derived.
+  if (baseUrl || cleanEnvValue(process.env.GOOGLE_REDIRECT_URI)) {
+    try { redirectUri = getGoogleRedirectUri(req); } catch (err) {
+      if (!(err instanceof AppConfigurationError)) throw err;
+      invalid.push(err.message);
+    }
+  }
+  const errors = [...(missing.length ? [`Missing env: ${missing.join(", ")}`] : []), ...invalid];
+  if (errors.length) throw new AppConfigurationError(errors.join("; "));
+  return { clientId, clientSecret, baseUrl, redirectUri };
 }

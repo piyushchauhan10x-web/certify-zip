@@ -7,7 +7,7 @@ app.require = (name) => name === 'next/headers' ? { headers: () => new Headers()
 app._compile(ts.transpileModule(fs.readFileSync('lib/appUrl.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText, 'app-url-check.cjs');
-const { getAppUrl, getGoogleRedirectUri, authCookieOptions, requireGoogleCredentials } = app.exports;
+const { getAppUrl, getGoogleRedirectUri, authCookieOptions, requireGoogleCredentials, getGoogleLoginConfig } = app.exports;
 const original = { ...process.env };
 const request = { headers: new Headers({ 'x-forwarded-proto': 'https', 'x-forwarded-host': 'certify-zip.vercel.app', host: 'internal-host' }) };
 try {
@@ -34,6 +34,25 @@ try {
   assert.throws(requireGoogleCredentials, /Missing env: GOOGLE_CLIENT_SECRET$/);
   process.env.GOOGLE_CLIENT_SECRET = 'test-secret';
   requireGoogleCredentials();
+  process.env.NODE_ENV = 'production';
+  delete process.env.GOOGLE_REDIRECT_URI;
+  process.env.GOOGLE_CLIENT_ID = ' "test-id/" ';
+  process.env.GOOGLE_CLIENT_SECRET = " 'test-secret/' ";
+  const config = getGoogleLoginConfig(request);
+  assert.equal(config.clientId, 'test-id');
+  assert.equal(config.clientSecret, 'test-secret');
+  assert.equal(config.baseUrl, 'https://certify-zip.vercel.app');
+  assert.equal(config.redirectUri, 'https://certify-zip.vercel.app/api/auth/google/callback');
+  process.env.GOOGLE_REDIRECT_URI = ' "https://certify-zip.vercel.app/api/auth/google/callback/" ';
+  assert.equal(getGoogleLoginConfig(request).redirectUri, config.redirectUri);
+  // Reads reflect changes after the module was loaded, rather than a cached snapshot.
+  delete process.env.GOOGLE_CLIENT_SECRET;
+  assert.throws(() => getGoogleLoginConfig(request), /^Error: Missing env: GOOGLE_CLIENT_SECRET$/);
+  assert.throws(() => getGoogleLoginConfig({ headers: new Headers() }), /^Error: Missing env: GOOGLE_CLIENT_SECRET, APP_URL$/);
+  delete process.env.GOOGLE_CLIENT_ID;
+  assert.throws(() => getGoogleLoginConfig(request), /^Error: Missing env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET$/);
+  process.env.GOOGLE_REDIRECT_URI = 'https://certify-zip.vercel.app/wrong';
+  assert.throws(() => getGoogleLoginConfig(request), /Missing env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET; Invalid configuration: GOOGLE_REDIRECT_URI/);
   console.log('PASS: missing APP_URL production request, env normalization, URL fallback order, callback URI, secure cookies, missing credential names, development-only localhost');
 } finally {
   for (const key of Object.keys(process.env)) if (!(key in original)) delete process.env[key];
