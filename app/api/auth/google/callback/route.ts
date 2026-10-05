@@ -5,14 +5,27 @@ import { getBaseUrl, getRedirectUri, GOOGLE_OAUTH_CONFIG, GMAIL_SEND_SCOPE, auth
 import { supabase } from "@/lib/db";
 import { createSessionToken, hashPassword, getCurrentUser } from "@/lib/auth";
 import { nanoid } from "nanoid";
+import { AppConfigurationError, requireGoogleCredentials } from "@/lib/appUrl";
 export const runtime = "nodejs";
 export const maxDuration = 60;
+export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   let baseUrl: string;
-  try { baseUrl = getBaseUrl(); } catch { return NextResponse.json({ error: "APP_URL is not configured." }, { status: 500 }); }
+  let redirectUri: string;
+  let cookieOptions: ReturnType<typeof authCookieOptions>;
+  try {
+    requireGoogleCredentials();
+    baseUrl = getBaseUrl(req);
+    redirectUri = getRedirectUri(req);
+    cookieOptions = authCookieOptions(req);
+  } catch (err) {
+    const error = err instanceof AppConfigurationError ? err.message : "Google callback is not configured.";
+    console.error("[OAUTH_ERROR]", { step: "callback_configuration", error });
+    return NextResponse.json({ error }, { status: 500 });
+  }
   const redirect = (path: string) => {
     const res = NextResponse.redirect(new URL(path, baseUrl));
-    res.cookies.set("google_oauth_state", "", { ...authCookieOptions(), maxAge: 0 });
+    res.cookies.set("google_oauth_state", "", { ...cookieOptions, maxAge: 0 });
     return res;
   };
   const state = req.nextUrl.searchParams.get("state") || "";
@@ -22,7 +35,7 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   if (!code) return redirect("/login?error=oauth_failed");
   try {
-    const client = new google.auth.OAuth2(GOOGLE_OAUTH_CONFIG.clientId, GOOGLE_OAUTH_CONFIG.clientSecret, getRedirectUri());
+    const client = new google.auth.OAuth2(GOOGLE_OAUTH_CONFIG.clientId, GOOGLE_OAUTH_CONFIG.clientSecret, redirectUri);
     const { tokens } = await client.getToken(code);
     client.setCredentials(tokens);
     const { data: profile } = await google.oauth2({ version: "v2", auth: client }).userinfo.get();
@@ -50,7 +63,7 @@ export async function GET(req: NextRequest) {
       userId = data.id;
     }
     const res = redirect(!hasGmail ? "/?gmail=denied" : !refreshToken ? "/?gmail=reconnect" : "/?connected=1");
-    res.cookies.set("session", createSessionToken(userId), { ...authCookieOptions(), maxAge: 60 * 60 * 24 * 30 });
+    res.cookies.set("session", createSessionToken(userId), { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
     return res;
   } catch {
     // OAuth library errors may contain token request bodies; never log them.
