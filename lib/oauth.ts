@@ -7,10 +7,9 @@ export const GOOGLE_OAUTH_CONFIG = {
   get clientId() { return cleanEnvValue(process.env.GOOGLE_CLIENT_ID); },
   get clientSecret() { return cleanEnvValue(process.env.GOOGLE_CLIENT_SECRET); },
   get redirectUri() { return getGoogleRedirectUri(); },
-  // Keep Sheets access for the existing recipient import feature.
-  scopes: ["openid", "email", "profile", GMAIL_SEND_SCOPE, "https://www.googleapis.com/auth/spreadsheets.readonly"],
+  scopes: ["openid", "email", "profile"],
 };
 export function buildAuthUrl(state: string, req: NextRequest, config: GoogleLoginConfig = getGoogleLoginConfig(req)): string {
-  const params = new URLSearchParams({ client_id: config.clientId, redirect_uri: config.redirectUri, response_type: "code", scope: GOOGLE_OAUTH_CONFIG.scopes.join(" "), access_type: "offline", prompt: "consent", include_granted_scopes: "true", state });
+  const params = new URLSearchParams({ client_id: config.clientId, redirect_uri: config.redirectUri, response_type: "code", scope: GOOGLE_OAUTH_CONFIG.scopes.join(" "), state });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }

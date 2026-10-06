@@ -233,7 +233,7 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
       </div>
 
       {reconnect && (
-        <a href="/api/auth/google" className="text-sm font-semibold text-[#F9654B] underline">Reconnect Gmail</a>
+        <a href="/api/auth/gmail/connect" className="text-sm font-semibold text-[#F9654B] underline">Reconnect Gmail</a>
       )}
       {sending && <ProgressBar done={done} total={certs.length} />}
       

@@ -1,74 +1,63 @@
+import { emailLookupPattern } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
-import { timingSafeEqual } from "crypto";
-import { GMAIL_SEND_SCOPE, authCookieOptions } from "@/lib/oauth";
+import { randomBytes } from "crypto";
 import { supabase } from "@/lib/db";
-import { createSessionToken, hashPassword, getCurrentUser } from "@/lib/auth";
-import { nanoid } from "nanoid";
-import { AppConfigurationError, getGoogleLoginConfig, GoogleLoginConfig } from "@/lib/appUrl";
+import { createSessionToken, hashPassword } from "@/lib/auth";
+import { getGoogleLoginConfig, authCookieOptions } from "@/lib/appUrl";
+import { authError, requireEnv } from "@/lib/authErrors";
+import { readOAuthContext } from "@/lib/oauthFlow";
 export const runtime = "nodejs";
-export const maxDuration = 60;
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 export async function GET(req: NextRequest) {
-  let baseUrl: string;
-  let redirectUri: string;
-  let cookieOptions: ReturnType<typeof authCookieOptions>;
-  let config: GoogleLoginConfig;
   try {
-    config = getGoogleLoginConfig(req);
-    baseUrl = config.baseUrl;
-    redirectUri = config.redirectUri;
-    cookieOptions = authCookieOptions(req);
-  } catch (err) {
-    const error = err instanceof AppConfigurationError ? err.message : "Google callback is not configured.";
-    console.error("[OAUTH_ERROR]", { step: "callback_configuration", error });
-    return NextResponse.json({ error }, { status: 500 });
-  }
-  const redirect = (path: string) => {
-    const res = NextResponse.redirect(new URL(path, baseUrl));
-    res.cookies.set("google_oauth_state", "", { ...cookieOptions, maxAge: 0 });
-    return res;
-  };
-  const state = req.nextUrl.searchParams.get("state") || "";
-  const expected = req.cookies.get("google_oauth_state")?.value || "";
-  if (!state || !expected || state.length !== expected.length || !timingSafeEqual(Buffer.from(state), Buffer.from(expected))) return redirect("/login?error=oauth_failed");
-  if (req.nextUrl.searchParams.get("error") === "access_denied") return redirect("/?gmail=denied");
-  const code = req.nextUrl.searchParams.get("code");
-  if (!code) return redirect("/login?error=oauth_failed");
-  try {
-    const client = new google.auth.OAuth2(config.clientId, config.clientSecret, redirectUri);
-    const { tokens } = await client.getToken(code);
-    client.setCredentials(tokens);
-    const { data: profile } = await google.oauth2({ version: "v2", auth: client }).userinfo.get();
-    if (!profile.email || !profile.verified_email) throw new Error("Unverified Google identity");
-    const scopes = (tokens.scope || "").split(/\s+/).filter(Boolean);
-    const hasGmail = scopes.includes(GMAIL_SEND_SCOPE);
-    const currentUser = await getCurrentUser();
-    const { data: existing, error: lookupError } = await supabase.from("users").select("id, google_email, google_refresh_token").eq(currentUser ? "id" : "email", currentUser ? currentUser.id : profile.email).maybeSingle();
-    if (lookupError) throw new Error("User lookup failed");
-    const refreshToken = hasGmail ? (tokens.refresh_token || (existing?.google_email === profile.email ? existing.google_refresh_token : null)) : null;
-    const connection = {
-      google_access_token: hasGmail ? tokens.access_token : null,
-      google_refresh_token: refreshToken,
-      google_email: hasGmail ? profile.email : null,
-      google_token_expiry: hasGmail ? tokens.expiry_date : null,
-      google_granted_scopes: scopes,
+    requireEnv("SUPABASE_URL", "SUPABASE_SERVICE_KEY", "JWT_SECRET");
+    const config = getGoogleLoginConfig(req);
+    const redirect = (error?: string) => {
+      const response = NextResponse.redirect(new URL(error ? `/login?error=${error}` : "/", config.baseUrl));
+      response.cookies.set("google_oauth_state", "", { ...authCookieOptions(), maxAge: 0 });
+      return response;
     };
-    let userId = existing?.id;
-    if (userId) {
-      const { error } = await supabase.from("users").update(connection).eq("id", userId);
-      if (error) throw new Error("Google connection persistence failed");
-    } else {
-      const { data, error } = await supabase.from("users").insert({ email: profile.email, password_hash: await hashPassword(nanoid(32)), ...connection }).select("id").single();
-      if (error || !data) throw new Error("Account creation failed");
-      userId = data.id;
+    const context = readOAuthContext(req, "google");
+    if (!context) return redirect("oauth_state");
+    if (req.nextUrl.searchParams.has("error")) return redirect("oauth_denied");
+    const code = req.nextUrl.searchParams.get("code");
+    if (!code) return redirect("oauth_failed");
+    try {
+      const client = new google.auth.OAuth2(config.clientId, config.clientSecret, context.redirectUri);
+      client.transporter.defaults = { ...client.transporter.defaults, timeout: 10000 };
+      const { tokens } = await client.getToken(code);
+      client.setCredentials(tokens);
+      const { data: profile } = await google.oauth2({ version: "v2", auth: client }).userinfo.get({}, { timeout: 10000 });
+      if (!profile.email || !profile.verified_email) return redirect("oauth_identity");
+      const email = profile.email.trim().toLowerCase();
+      const { data: existing, error } = await supabase.from("users").select("id").ilike("email", emailLookupPattern(email)).maybeSingle();
+      if (error) return redirect("oauth_database");
+      let userId = existing?.id;
+      if (!userId) {
+        const result = await supabase.from("users").insert({ email, password_hash: await hashPassword(randomBytes(32).toString("hex")) }).select("id").single();
+        if (result.error?.code === "23505") {
+          const retry = await supabase.from("users").select("id").ilike("email", emailLookupPattern(email)).single();
+          userId = retry.data?.id;
+        } else userId = result.data?.id;
+        if (!userId) return redirect("oauth_database");
+      }
+      const response = redirect();
+      response.cookies.set("session", createSessionToken(userId), { ...authCookieOptions(), maxAge: 60 * 60 * 24 * 30 });
+      return response;
+    } catch (error) {
+      const providerCode = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      if (providerCode === "invalid_client") {
+        console.error("[AUTH_ERROR] Invalid GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET.");
+        return redirect("oauth_client");
+      }
+      if (providerCode === "redirect_uri_mismatch") {
+        console.error("[AUTH_ERROR] GOOGLE_REDIRECT_URI does not match Google Cloud configuration.");
+        return redirect("oauth_redirect");
+      }
+      console.error("[AUTH_ERROR] Google identity exchange failed.");
+      return redirect("oauth_failed");
     }
-    const res = redirect(!hasGmail ? "/?gmail=denied" : !refreshToken ? "/?gmail=reconnect" : "/?connected=1");
-    res.cookies.set("session", createSessionToken(userId), { ...cookieOptions, maxAge: 60 * 60 * 24 * 30 });
-    return res;
-  } catch {
-    // OAuth library errors may contain token request bodies; never log them.
-    console.error("[OAUTH_ERROR]", { step: "callback_exchange_or_save", recipient: "unknown" });
-    return redirect("/login?error=oauth_failed");
-  }
+  } catch (error) { return authError(error, "Google callback failed. Please try again."); }
 }

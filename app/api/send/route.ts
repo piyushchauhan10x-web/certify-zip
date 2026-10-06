@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { supabase } from "@/lib/db";
-import { sendCertEmail, GmailError } from "@/lib/gmail";
-import { sendCertEmailViaResend, hasVerifiedResendSender } from "@/lib/email";
+import { sendCertEmail, GmailError, gmailConnected } from "@/lib/gmail";
 import { checkRateLimit, getClientKey } from "@/lib/rateLimit";
 import { z } from "zod";
 export const runtime = "nodejs";
@@ -20,7 +19,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ code, error }, { status });
   };
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(true);
     if (!user) return fail("NOT_AUTHENTICATED", "Please log in and connect Gmail.", 401);
     step = "validate";
     let body;
@@ -34,20 +33,15 @@ export async function POST(req: NextRequest) {
     if (!checkRateLimit(`send:${user.id}:${getClientKey(req)}`, 50, 60 * 60 * 1000)) return fail("SEND_QUOTA", "Send limit reached. Try again later.", 429);
     step = "sender_connection";
     // Partial or expired Gmail connections must reconnect, never switch accounts.
-    const hasGoogleConnection = Boolean(user.google_email || user.google_access_token || user.google_refresh_token || user.google_granted_scopes?.length);
-    if (!hasGoogleConnection && !await hasVerifiedResendSender()) return fail("RECONNECT_GMAIL", "Gmail not connected. Reconnect Gmail to send from your account.", 401);
+    if (!gmailConnected(user)) return fail("RECONNECT_GMAIL", "Gmail not connected. Connect Gmail to send from your account.", 401);
     step = "download";
     const { data, error } = await supabase.storage.from("certificates").download(path);
     if (error || !data) return fail("PDF_DOWNLOAD_FAILED", "Failed to download the certificate from storage.", 500);
     const pdfBuffer = Buffer.from(await data.arrayBuffer());
     const html = bodyHtml || message || `<p>Hi ${name || "there"},</p><p>Please find your certificate attached.</p>`;
     const filename = attachmentName || `certificate_${(name || "recipient").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
-    step = hasGoogleConnection ? "gmail_send" : "resend_send";
-    if (hasGoogleConnection) {
-      await sendCertEmail({ user, to, subject, bodyHtml: html, fromName, pdfBuffer, attachmentName: filename });
-    } else {
-      await sendCertEmailViaResend({ to, subject, bodyHtml: html, fromName, pdfBuffer, attachmentName: filename });
-    }
+    step = "gmail_send";
+    await sendCertEmail({ user, to, subject, bodyHtml: html, fromName, pdfBuffer, attachmentName: filename });
     return NextResponse.json({ ok: true, recipient: to });
   } catch (err) {
     if (err instanceof GmailError) return fail(err.code, err.message, err.status);

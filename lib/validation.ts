@@ -1,9 +1,14 @@
 ﻿import { z } from "zod";
 
 export const authSchema = z.object({
-  email: z.string().email().max(255),
-  password: z.string().min(6).max(100),
+  email: z.string().trim().toLowerCase().email().max(255),
+  password: z.string().min(6).max(100).refine(value => Buffer.byteLength(value, "utf8") <= 72, "Password must be at most 72 bytes"),
 });
+
+// ILIKE treats '%' and '_' as wildcards, even inside valid email addresses.
+export function emailLookupPattern(email: string) {
+  return email.replace(/[\\%_]/g, character => `\\${character}`);
+}
 
 export const sheetImportSchema = z.object({
   sheetUrl: z.string().url().max(500),

@@ -4,7 +4,7 @@ type UrlRequest = { headers: Headers };
 export class AppConfigurationError extends Error {}
 
 export function cleanEnvValue(value?: string): string {
-  return (value || "").trim().replace(/^(["'])(.*)\1$/, "$2").trim().replace(/\/+$/, "");
+  return (value || "").trim().replace(/^(["'])(.*)\1$/, "$2").trim();
 }
 
 function origin(value: string, source: string): string {
@@ -28,8 +28,8 @@ export function getAppUrl(req?: UrlRequest): string {
     try { requestHeaders = headers(); } catch { requestHeaders = new Headers(); }
   }
   const proto = requestHeaders.get("x-forwarded-proto")?.split(",")[0].trim();
-  const host = (requestHeaders.get("x-forwarded-host") || requestHeaders.get("host"))?.split(",")[0].trim();
-  if (host) {
+  const host = requestHeaders.get("x-forwarded-host")?.split(",")[0].trim();
+  if (host && proto) {
     // These headers are supplied by the deployment's reverse proxy.
     if (!/^[a-zA-Z0-9.\-\[\]:]+$/.test(host)) throw new AppConfigurationError("Invalid configuration: request host");
     return origin(`${proto || (process.env.NODE_ENV === "development" ? "http" : "https")}://${host}`, "request origin");
@@ -54,10 +54,7 @@ export function getGoogleRedirectUri(req?: UrlRequest): string {
 }
 
 export function authCookieOptions(req?: UrlRequest) {
-  const url = new URL(getAppUrl(req));
-  const domain = cleanEnvValue(process.env.COOKIE_DOMAIN).replace(/^\./, "");
-  if (domain && domain !== url.hostname) throw new AppConfigurationError("Invalid configuration: COOKIE_DOMAIN must match the app hostname");
-  return { httpOnly: true, secure: url.protocol === "https:", sameSite: "lax" as const, path: "/", ...(domain ? { domain } : {}) };
+  return { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/" };
 }
 
 export function requireGoogleCredentials() {

@@ -46,8 +46,12 @@ export default function Home() {
       }
     }
 
-    fetch("/api/auth/me")
-      .then((r) => r.json())
+    fetch("/api/auth/me", { signal: AbortSignal.timeout(30000) })
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Could not check your session.");
+        return data;
+      })
       .then((data) => {
         if (!data.loggedIn) {
           if (new URLSearchParams(window.location.search).get("gmail") === "denied") return;
@@ -58,7 +62,7 @@ export default function Home() {
         setGoogleEmail(data.googleEmail || "");
         setUserEmail(data.email || "");
         setAuthChecked(true);
-      });
+      }).catch(() => router.push("/login?error=session_check"));
   }, [router]);
 
   async function handleLogout() {
@@ -78,7 +82,7 @@ export default function Home() {
   if (!authChecked) return gmailDenied ? (
     <div className="max-w-xl mx-auto p-6 text-amber-900">
       <p>Tick the Gmail permission box on the Google screen</p>
-      <a href="/api/auth/google" className="text-sm font-semibold text-[#F9654B] underline">Reconnect Gmail</a>
+      <a href="/api/auth/gmail/connect" className="text-sm font-semibold text-[#F9654B] underline">Reconnect Gmail</a>
     </div>
   ) : null;
 
@@ -143,7 +147,7 @@ export default function Home() {
                     </div>
                   ) : (
                     <a
-                      href="/api/auth/google"
+                      href="/api/auth/gmail/connect"
                       className="text-[#F9654B] hover:underline font-medium block"
                     >
                       + Connect Gmail account
@@ -178,7 +182,7 @@ export default function Home() {
               </div>
             </div>
             <a
-              href="/api/auth/google"
+              href="/api/auth/gmail/connect"
               className="bg-[#F9654B] hover:bg-[#E04F34] text-white text-xs font-semibold px-4 py-2.5 min-h-[44px] sm:min-h-0 rounded-xl transition-colors shrink-0 flex items-center justify-center shadow-xs"
             >
               Reconnect
@@ -472,9 +476,7 @@ export default function Home() {
               <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Direct Delivery Engine</h2>
               <p className="text-xs text-gray-500">Batch email generated certificate PDFs directly to recipient mailboxes.</p>
               {!googleConnected && (
-                <p className="text-xs text-rose-600 mt-2 font-medium">
-                  ⚠️ Authenticate with Gmail at the top of the interface prior to batch queueing.
-                </p>
+                <a href="/api/auth/gmail/connect" className="text-xs text-[#F9654B] mt-2 font-medium underline block">Connect Gmail</a>
               )}
             </div>
             <SendPanel certs={certs} recipients={recipients} />

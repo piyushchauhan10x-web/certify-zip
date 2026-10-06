@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function AuthForm({ mode: initialMode }: { mode: "login" | "register" }) {
@@ -15,6 +15,34 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("error");
+    const messages: Record<string, string> = {
+      oauth_denied: "Google sign-in was cancelled. Please try again.",
+      oauth_state: "Google sign-in expired or the browser blocked its cookie. Please try again.",
+      oauth_identity: "Google could not verify your email address.",
+      oauth_database: "Your Google account could not be saved. Please try again later.",
+      oauth_failed: "Google sign-in failed. Please try again or sign in with email.",
+      oauth_client: "Google sign-in is unavailable because the server's Google OAuth credentials are invalid.",
+      oauth_redirect: "Google sign-in is unavailable because its callback URL is not authorized in Google Cloud.",
+      session_check: "Could not check your session. Please try signing in again.",
+    };
+    if (code) setError(messages[code] || "Sign-in failed. Please try again.");
+  }, []);
+
+  async function handleGoogle(e: React.MouseEvent<HTMLAnchorElement>) {
+    e.preventDefault();
+    if (loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/google?format=json", { signal: AbortSignal.timeout(30000) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.url) { setError(data.error || "Google sign-in could not be started."); return; }
+      window.location.assign(data.url);
+    } catch { setError("Google sign-in timed out or could not connect. Please try again."); }
+    finally { setLoading(false); }
+  }
 
   function switchMode(target: "login" | "register") {
     if (target === mode) return;
@@ -38,10 +66,11 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, ...(mode === "register" && { name }) }),
+        signal: AbortSignal.timeout(30000),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ error: "The server returned an unreadable response. Please try again." }));
 
-      if (!res.ok) {
+      if (!res.ok || data.ok !== true) {
         setError(data.error || "Authentication failed");
         setLoading(false);
         return;
@@ -50,7 +79,8 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
       router.push("/");
       router.refresh();
     } catch {
-      setError("An unexpected network error occurred.");
+      setError("Sign-in timed out or could not connect. Please try again.");
+    } finally {
       setLoading(false);
     }
   }
@@ -97,6 +127,8 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
         {/* Google OAuth Option */}
         <a
           href="/api/auth/google"
+          onClick={handleGoogle}
+          aria-disabled={loading}
           className="flex items-center justify-center gap-3 w-full py-3 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 transition-all text-xs sm:text-sm font-medium text-gray-700 shadow-xs mb-5 group min-h-[44px]"
         >
           <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">

@@ -2,11 +2,13 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import { supabase } from "./db";
+import { requireEnv } from "./authErrors";
+import type { GmailUser } from "./gmail";
+type SessionUser = GmailUser & { email: string };
 
 function sessionSecret(): string {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error("JWT_SECRET must be configured.");
-  return secret;
+  requireEnv("JWT_SECRET");
+  return process.env.JWT_SECRET!.trim();
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -22,8 +24,9 @@ export function createSessionToken(userId: string): string {
 }
 
 export function verifySessionToken(token: string): { userId: string } | null {
+  const secret = sessionSecret();
   try {
-    const payload = jwt.verify(token, sessionSecret(), { algorithms: ["HS256"] }) as { userId?: string; purpose?: string };
+    const payload = jwt.verify(token, secret, { algorithms: ["HS256"] }) as { userId?: string; purpose?: string };
     if (typeof payload.userId !== "string" || payload.purpose) return null;
     return { userId: payload.userId };
   } catch {
@@ -36,16 +39,17 @@ export function createResetToken(userId: string): string {
 }
 
 export function verifyResetToken(token: string): { userId: string } | null {
+  const secret = sessionSecret();
   try {
-    const payload = jwt.verify(token, sessionSecret(), { algorithms: ["HS256"] }) as { userId: string; purpose: string };
-    if (payload.purpose !== "reset") return null;
+    const payload = jwt.verify(token, secret, { algorithms: ["HS256"] }) as { userId: string; purpose: string };
+    if (payload.purpose !== "reset" || typeof payload.userId !== "string") return null;
     return { userId: payload.userId };
   } catch {
     return null;
   }
 }
 
-export async function getCurrentUser() {
+export async function getCurrentUser(withGmail = false): Promise<SessionUser | null> {
   const cookieStore = cookies();
   const token = cookieStore.get("session")?.value;
   if (!token) return null;
@@ -55,10 +59,12 @@ export async function getCurrentUser() {
 
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, google_access_token, google_refresh_token, google_email, google_token_expiry, google_granted_scopes")
+    .select(withGmail ? "*" : "id, email")
     .eq("id", payload.userId)
-    .single();
+    .returns<SessionUser[]>()
+    .maybeSingle();
 
-  if (error || !data) return null;
-  return data;
+  if (error) throw new Error("User lookup failed.");
+  if (!data) return null;
+  return { ...data, google_access_token: data.google_access_token ?? null, google_refresh_token: data.google_refresh_token ?? null, google_email: data.google_email ?? null, google_token_expiry: data.google_token_expiry ?? null, google_granted_scopes: data.google_granted_scopes ?? null };
 }

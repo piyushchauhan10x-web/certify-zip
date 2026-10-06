@@ -10,7 +10,7 @@ export async function sendPasswordResetEmail(to: string, resetLink: string) {
   try {
     const resend = new Resend(apiKey);
     const result = await resend.emails.send({
-      from: "Certify <onboarding@resend.dev>",
+      from: process.env.EMAIL_FROM?.trim() || "Certify <onboarding@resend.dev>",
       to,
       subject: "Reset your Certify password",
       html: `
@@ -24,13 +24,11 @@ export async function sendPasswordResetEmail(to: string, resetLink: string) {
     });
 
     if (result.error) {
-      console.error("[RESEND_API_ERROR] Failed to send password reset email:", result.error);
-    } else {
-      console.log("[RESEND_SUCCESS] Reset email sent to:", to, "ID:", result.data?.id);
+      console.error("[RESEND_ERROR] Password reset email is not available yet");
     }
     return result;
   } catch (err: any) {
-    console.error("[RESEND_EXCEPTION] Exception thrown while sending reset email:", err?.message || err);
+    console.error("[RESEND_ERROR] Password reset email is not available yet");
     return { error: err };
   }
 }

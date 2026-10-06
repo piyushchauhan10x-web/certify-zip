@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(true);
     if (!user || !user.google_access_token || !user.google_refresh_token) {
       return NextResponse.json({ error: "Connect Gmail first to access Google Sheets" }, { status: 401 });
     }
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ recipients: validateRecipients(recipients) });
   } catch (err: any) {
-    console.error("SHEETS ROUTE CRASH:", err);
+    console.error("[SHEETS_ERROR] Failed to fetch sheet.");
     return NextResponse.json({ error: "Failed to fetch sheet" }, { status: 500 });
   }
 }

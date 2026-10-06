@@ -10,14 +10,17 @@ export default function ForgotPasswordForm() {
     e.preventDefault();
     setLoading(true);
     setMessage("");
+    try {
     const res = await fetch("/api/auth/forgot-password", {
+      signal: AbortSignal.timeout(30000),
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
     const data = await res.json();
-    setLoading(false);
-    setMessage(data.message || data.error || "Something happened");
+    setMessage(data.message || data.error || "Password reset failed. Please try again.");
+    } catch { setMessage("Request timed out or could not connect. Please try again."); }
+    finally { setLoading(false); }
   }
 
   return (

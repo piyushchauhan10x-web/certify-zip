@@ -15,19 +15,22 @@ export default function ResetPasswordForm() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    try {
     const res = await fetch("/api/auth/reset-password", {
+      signal: AbortSignal.timeout(30000),
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, password }),
     });
     const data = await res.json();
-    setLoading(false);
     if (!res.ok) {
       setError(data.error || "Something went wrong");
       return;
     }
     setDone(true);
     setTimeout(() => router.push("/login"), 1500);
+    } catch { setError("Request timed out or could not connect. Please try again."); }
+    finally { setLoading(false); }
   }
 
   if (!token) {

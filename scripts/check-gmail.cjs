@@ -37,7 +37,7 @@ const rejectCode = (code, status) => (error) => error.code === code && error.sta
   };
   await sendCertEmail(params);
   assert.equal(calls, 1);
-  await assert.rejects(sendCertEmail({ ...params, user: { ...user, google_granted_scopes: [] } }), rejectCode('GMAIL_PERMISSION_MISSING', 403));
+  await assert.rejects(sendCertEmail({ ...params, user: { ...user, google_granted_scopes: [] } }), rejectCode('RECONNECT_GMAIL', 401));
   assert.equal(calls, 1);
   global.fetch = async () => reply(400, { error: 'invalid_grant' });
   await assert.rejects(sendCertEmail({ ...params, user: { ...user, google_token_expiry: 1 } }), rejectCode('RECONNECT_GMAIL', 401));
