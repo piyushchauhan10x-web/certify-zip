@@ -8,6 +8,6 @@ export async function GET(req: NextRequest) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Please log in before connecting Gmail." }, { status: 401 });
-    return startOAuth(req, "gmail", user.id);
+    return startOAuth(req, user.id);
   } catch (error) { return authError(error, "Gmail connection could not be started."); }
 }

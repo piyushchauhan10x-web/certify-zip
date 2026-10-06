@@ -9,12 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.116.0",
-    "bcryptjs": "^3.0.3",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
     "framer-motion": "^13.4.0",
     "googleapis": "^140.0.1",
-    "jose": "^6.2.12",
-    "jsonwebtoken": "^9.0.3",
     "jspdf": "^2.5.1",
     "lucide-react": "^1.47.0",
     "nanoid": "^5.0.7",
@@ -27,8 +25,6 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.14.15",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

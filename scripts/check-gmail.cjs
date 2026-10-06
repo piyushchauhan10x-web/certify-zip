@@ -17,7 +17,7 @@ mod.require = (name) => {
 };
 mod._compile(source, 'gmail-check.cjs');
 const { sendCertEmail } = mod.exports;
-const user = { id: 'user-two', google_email: 'user-two@example.com', google_access_token: 'user-two-token', google_refresh_token: 'user-two-refresh', google_token_expiry: Date.now() + 3600000, google_granted_scopes: [scope] };
+const user = { user_id: 'user-two', google_email: 'user-two@example.com', google_access_token: 'user-two-token', google_refresh_token: 'user-two-refresh', google_token_expiry: Date.now() + 3600000, google_granted_scopes: [scope] };
 const pdf = Buffer.alloc(8 * 1024 * 1024, 123);
 const params = { user, to: 'recipient@example.com', subject: 'Certificate', bodyHtml: '<p>Attached</p>', pdfBuffer: pdf, attachmentName: 'certificate.pdf' };
 const reply = (status, data) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -52,7 +52,7 @@ const rejectCode = (code, status) => (error) => error.code === code && error.sta
     return reply(200, { id: 'refreshed-message' });
   };
   await sendCertEmail({ ...params, user: { ...user, google_token_expiry: 1 } });
-  assert.equal(updates[0].key, 'id');
+  assert.equal(updates[0].key, 'user_id');
   assert.equal(updates[0].id, 'user-two');
   console.log('PASS: intact 8 MB attachment, current-user sender, scope rejection, invalid_grant, quota mapping, per-user refresh persistence');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

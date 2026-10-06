@@ -5,6 +5,7 @@ import { supabase } from "@/lib/db";
 import { getGoogleLoginConfig, authCookieOptions } from "@/lib/appUrl";
 import { authError } from "@/lib/authErrors";
 import { readOAuthContext } from "@/lib/oauthFlow";
+import { getGmailConnection } from "@/lib/gmail";
 import { GMAIL_SEND_SCOPE } from "@/lib/oauth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,9 +18,10 @@ export async function GET(req: NextRequest) {
       response.cookies.set("gmail_oauth_state", "", { ...authCookieOptions(), maxAge: 0 });
       return response;
     };
-    const context = readOAuthContext(req, "gmail");
-    const user = await getCurrentUser(true);
-    if (!context || !user || context.userId !== user.id) return redirect("reconnect");
+    const context = readOAuthContext(req);
+    const user = await getCurrentUser();
+    if (!user) return NextResponse.json({ error: "Please log in." }, { status: 401 });
+    if (!context || context.userId !== user.id || context.redirectUri !== config.redirectUri) return redirect("reconnect");
     if (req.nextUrl.searchParams.has("error")) return redirect("denied");
     const code = req.nextUrl.searchParams.get("code");
     if (!code) return redirect("reconnect");
@@ -29,16 +31,17 @@ export async function GET(req: NextRequest) {
       const { tokens } = await client.getToken(code);
       const scopes = (tokens.scope || "").split(/\s+/).filter(Boolean);
       if (!scopes.includes(GMAIL_SEND_SCOPE)) {
-        const { error } = await supabase.from("users").update({ google_granted_scopes: scopes, google_access_token: null, google_refresh_token: null, google_email: null, google_token_expiry: null }).eq("id", user.id);
+        const { error } = await supabase.from("gmail_tokens").update({ google_granted_scopes: scopes, google_access_token: null, google_refresh_token: null, google_email: null, google_token_expiry: null }).eq("user_id", user.id);
         if (error) return redirect("reconnect");
         return redirect("denied");
       }
       client.setCredentials(tokens);
       const { data: profile } = await google.oauth2({ version: "v2", auth: client }).userinfo.get({}, { timeout: 10000 });
       if (!profile.email || !profile.verified_email) return redirect("reconnect");
-      const refreshToken = tokens.refresh_token || (user.google_email === profile.email ? user.google_refresh_token : null);
+      const previous = await getGmailConnection(user.id);
+      const refreshToken = tokens.refresh_token || (previous?.google_email === profile.email ? previous.google_refresh_token : null);
       if (!refreshToken || !tokens.access_token) return redirect("reconnect");
-      const { error } = await supabase.from("users").update({ google_access_token: tokens.access_token, google_refresh_token: refreshToken, google_email: profile.email, google_token_expiry: tokens.expiry_date, google_granted_scopes: scopes }).eq("id", user.id);
+      const { error } = await supabase.from("gmail_tokens").upsert({ user_id: user.id, updated_at: new Date().toISOString(), google_access_token: tokens.access_token, google_refresh_token: refreshToken, google_email: profile.email, google_token_expiry: tokens.expiry_date, google_granted_scopes: scopes }, { onConflict: "user_id" });
       if (error) return redirect("reconnect");
       return redirect("connected");
     } catch {

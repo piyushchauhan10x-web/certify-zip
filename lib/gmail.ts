@@ -6,17 +6,22 @@ export class GmailError extends Error {
   constructor(public code: string, public status: number, message: string) { super(message); }
 }
 export interface GmailUser {
-  id: string;
+  user_id: string;
   google_access_token: string | null;
   google_refresh_token: string | null;
   google_email: string | null;
   google_token_expiry: number | null;
   google_granted_scopes: string[] | null;
 }
+export async function getGmailConnection(userId: string): Promise<GmailUser | null> {
+  const { data, error } = await supabase.from("gmail_tokens").select("*").eq("user_id", userId).maybeSingle();
+  if (error) throw new GmailError("TOKEN_LOOKUP_FAILED", 500, "Could not load Gmail connection.");
+  return data;
+}
 export function gmailConnected(user: GmailUser) {
   return Boolean(user.google_email && user.google_refresh_token && user.google_granted_scopes?.includes(GMAIL_SEND_SCOPE));
 }
-async function accessToken(user: GmailUser, force = false): Promise<string> {
+export async function accessToken(user: GmailUser, force = false): Promise<string> {
   if (!user.google_granted_scopes?.includes(GMAIL_SEND_SCOPE)) throw new GmailError("RECONNECT_GMAIL", 401, "Connect Gmail and grant permission to send email.");
   if (!user.google_email || !user.google_refresh_token) throw new GmailError("RECONNECT_GMAIL", 401, "Gmail not connected. Reconnect Gmail to send from your account.");
   if (!force && user.google_access_token && user.google_token_expiry && user.google_token_expiry > Date.now() + 60000) return user.google_access_token;
@@ -34,7 +39,7 @@ async function accessToken(user: GmailUser, force = false): Promise<string> {
   if (!data.access_token || !data.expires_in) throw new GmailError("GMAIL_REFRESH_FAILED", 500, "Google returned an invalid token response.");
   const scopes = data.scope ? String(data.scope).split(/\s+/) : user.google_granted_scopes;
   const expiry = Date.now() + Number(data.expires_in) * 1000;
-  const { error } = await supabase.from("users").update({ google_access_token: data.access_token, google_token_expiry: expiry, google_granted_scopes: scopes, ...(data.refresh_token ? { google_refresh_token: data.refresh_token } : {}) }).eq("id", user.id);
+  const { error } = await supabase.from("gmail_tokens").update({ google_access_token: data.access_token, google_token_expiry: expiry, google_granted_scopes: scopes, ...(data.refresh_token ? { google_refresh_token: data.refresh_token } : {}) }).eq("user_id", user.user_id);
   if (error) throw new GmailError("TOKEN_SAVE_FAILED", 500, "Could not save refreshed Gmail connection.");
   if (!scopes?.includes(GMAIL_SEND_SCOPE)) throw new GmailError("RECONNECT_GMAIL", 401, "Reconnect Gmail and grant permission to send email.");
   return data.access_token;

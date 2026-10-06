@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { withAuthTimeout, authMessage } from "@/lib/authUi";
 import { useRouter } from "next/navigation";
 
 export default function AuthForm({ mode: initialMode }: { mode: "login" | "register" }) {
@@ -36,10 +38,12 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/auth/google?format=json", { signal: AbortSignal.timeout(30000) });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.url) { setError(data.error || "Google sign-in could not be started."); return; }
-      window.location.assign(data.url);
+      const { data, error } = await withAuthTimeout(createClient().auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/auth/callback`, queryParams: { prompt: "select_account" } },
+      }));
+      if (error) { setError(authMessage(error)); return; }
+      if (!data.url) setError("Google sign-in could not be started.");
     } catch { setError("Google sign-in timed out or could not connect. Please try again."); }
     finally { setLoading(false); }
   }
@@ -62,20 +66,15 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
     }
 
     try {
-      const res = await fetch(`/api/auth/${mode}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, ...(mode === "register" && { name }) }),
-        signal: AbortSignal.timeout(30000),
-      });
-      const data = await res.json().catch(() => ({ error: "The server returned an unreadable response. Please try again." }));
-
-      if (!res.ok || data.ok !== true) {
-        setError(data.error || "Authentication failed");
-        setLoading(false);
-        return;
+      const client = createClient();
+      const { data, error } = await withAuthTimeout(mode === "register"
+        ? client.auth.signUp({ email: email.trim(), password, options: { data: { name }, emailRedirectTo: `${window.location.origin}/auth/callback` } })
+        : client.auth.signInWithPassword({ email: email.trim(), password }));
+      if (error) { setError(authMessage(error)); return; }
+      if (mode === "register" && data.user?.identities?.length === 0) {
+        setError("An account with this email already exists. Please sign in."); return;
       }
-
+      if (!data.session) { setError("Check your email to confirm your account, then sign in."); return; }
       router.push("/");
       router.refresh();
     } catch {
@@ -126,7 +125,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
 
         {/* Google OAuth Option */}
         <a
-          href="/api/auth/google"
+          href="#"
           onClick={handleGoogle}
           aria-disabled={loading}
           className="flex items-center justify-center gap-3 w-full py-3 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 transition-all text-xs sm:text-sm font-medium text-gray-700 shadow-xs mb-5 group min-h-[44px]"

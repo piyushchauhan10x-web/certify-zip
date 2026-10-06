@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import UploadExcel from "@/components/UploadExcel";
 import GoogleSheetImport from "@/components/GoogleSheetImport";
@@ -49,6 +50,7 @@ export default function Home() {
     fetch("/api/auth/me", { signal: AbortSignal.timeout(30000) })
       .then(async (r) => {
         const data = await r.json();
+        if (r.status === 401) { router.push("/login"); return { loggedIn: false }; }
         if (!r.ok) throw new Error(data.error || "Could not check your session.");
         return data;
       })
@@ -66,7 +68,8 @@ export default function Home() {
   }, [router]);
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    const { error } = await createClient().auth.signOut();
+    if (error) { window.alert("Could not sign out. Please try again."); return; }
     router.push("/login");
   }
 

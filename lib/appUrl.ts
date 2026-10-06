@@ -28,8 +28,8 @@ export function getAppUrl(req?: UrlRequest): string {
     try { requestHeaders = headers(); } catch { requestHeaders = new Headers(); }
   }
   const proto = requestHeaders.get("x-forwarded-proto")?.split(",")[0].trim();
-  const host = requestHeaders.get("x-forwarded-host")?.split(",")[0].trim();
-  if (host && proto) {
+  const host = (requestHeaders.get("x-forwarded-host") || requestHeaders.get("host"))?.split(",")[0].trim();
+  if (host) {
     // These headers are supplied by the deployment's reverse proxy.
     if (!/^[a-zA-Z0-9.\-\[\]:]+$/.test(host)) throw new AppConfigurationError("Invalid configuration: request host");
     return origin(`${proto || (process.env.NODE_ENV === "development" ? "http" : "https")}://${host}`, "request origin");
@@ -41,7 +41,7 @@ export function getAppUrl(req?: UrlRequest): string {
   throw new AppConfigurationError("Missing env: APP_URL or VERCEL_PROJECT_PRODUCTION_URL (request host unavailable)");
 }
 
-export const GOOGLE_CALLBACK_PATH = "/api/auth/google/callback";
+export const GOOGLE_CALLBACK_PATH = "/api/auth/gmail/callback";
 export function getGoogleRedirectUri(req?: UrlRequest): string {
   const configured = cleanEnvValue(process.env.GOOGLE_REDIRECT_URI);
   if (!configured) return `${getAppUrl(req)}${GOOGLE_CALLBACK_PATH}`;

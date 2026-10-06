@@ -25,12 +25,9 @@ export async function POST(req: NextRequest) {
       .createSignedUploadUrl(filename);
 
     if (error || !data) {
-      console.error("[UPLOAD_URL_ERROR]", {
-        step: "createSignedUploadUrl",
-        message: error?.message || "Failed to create signed URL",
-      });
+      console.error("[UPLOAD_URL_ERROR] Failed to create signed upload URL.");
       return NextResponse.json(
-        { error: `Failed to generate upload URL: ${error?.message || "Storage bucket missing or misconfigured"}` },
+        { error: "Failed to generate upload URL. Check the certificates bucket configuration." },
         { status: 500 }
       );
     }
@@ -40,11 +37,8 @@ export async function POST(req: NextRequest) {
       signedUrl: data.signedUrl,
       token: data.token,
     });
-  } catch (err: any) {
-    console.error("[UPLOAD_URL_CRASH]", {
-      step: "upload_url_catch",
-      message: err?.message || err,
-    });
+  } catch {
+    console.error("[UPLOAD_URL_CRASH] Could not create signed upload URL.");
     return NextResponse.json({ error: "Server error generating upload URL" }, { status: 500 });
   }
 }

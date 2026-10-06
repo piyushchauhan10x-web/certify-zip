@@ -1,11 +1,11 @@
 ﻿"use client";
+import { createClient } from "@/lib/supabase/client";
+import { withAuthTimeout, authMessage } from "@/lib/authUi";
 import { useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function ResetPasswordForm() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const token = searchParams.get("token") || "";
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -16,29 +16,13 @@ export default function ResetPasswordForm() {
     setLoading(true);
     setError("");
     try {
-    const res = await fetch("/api/auth/reset-password", {
-      signal: AbortSignal.timeout(30000),
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error || "Something went wrong");
-      return;
-    }
+    const { error } = await withAuthTimeout(createClient().auth.updateUser({ password }));
+    if (error) { setError(authMessage(error)); return; }
+    await withAuthTimeout(createClient().auth.signOut());
     setDone(true);
     setTimeout(() => router.push("/login"), 1500);
     } catch { setError("Request timed out or could not connect. Please try again."); }
     finally { setLoading(false); }
-  }
-
-  if (!token) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg p-4">
-        <p className="text-red-400">Invalid or missing reset link.</p>
-      </div>
-    );
   }
 
   return (

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { supabase } from "@/lib/db";
-import { sendCertEmail, GmailError, gmailConnected } from "@/lib/gmail";
+import { sendCertEmail, GmailError, gmailConnected, getGmailConnection } from "@/lib/gmail";
 import { checkRateLimit, getClientKey } from "@/lib/rateLimit";
 import { z } from "zod";
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ code, error }, { status });
   };
   try {
-    const user = await getCurrentUser(true);
+    const user = await getCurrentUser();
     if (!user) return fail("NOT_AUTHENTICATED", "Please log in and connect Gmail.", 401);
     step = "validate";
     let body;
@@ -33,7 +33,8 @@ export async function POST(req: NextRequest) {
     if (!checkRateLimit(`send:${user.id}:${getClientKey(req)}`, 50, 60 * 60 * 1000)) return fail("SEND_QUOTA", "Send limit reached. Try again later.", 429);
     step = "sender_connection";
     // Partial or expired Gmail connections must reconnect, never switch accounts.
-    if (!gmailConnected(user)) return fail("RECONNECT_GMAIL", "Gmail not connected. Connect Gmail to send from your account.", 401);
+    const connection = await getGmailConnection(user.id);
+    if (!connection || !gmailConnected(connection)) return fail("RECONNECT_GMAIL", "Gmail not connected. Connect Gmail to send from your account.", 401);
     step = "download";
     const { data, error } = await supabase.storage.from("certificates").download(path);
     if (error || !data) return fail("PDF_DOWNLOAD_FAILED", "Failed to download the certificate from storage.", 500);
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     const html = bodyHtml || message || `<p>Hi ${name || "there"},</p><p>Please find your certificate attached.</p>`;
     const filename = attachmentName || `certificate_${(name || "recipient").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
     step = "gmail_send";
-    await sendCertEmail({ user, to, subject, bodyHtml: html, fromName, pdfBuffer, attachmentName: filename });
+    await sendCertEmail({ user: connection, to, subject, bodyHtml: html, fromName, pdfBuffer, attachmentName: filename });
     return NextResponse.json({ ok: true, recipient: to });
   } catch (err) {
     if (err instanceof GmailError) return fail(err.code, err.message, err.status);
