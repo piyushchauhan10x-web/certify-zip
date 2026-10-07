@@ -11,9 +11,14 @@ export async function withAuthTimeout<T>(operation: PromiseLike<T>): Promise<T> 
 }
 
 export function authMessage(error: { code?: string; message: string }) {
+  if (["over_email_send_rate_limit", "over_request_rate_limit"].includes(error.code || "")) return "Too many emails, try later";
   if (error.code === "invalid_credentials") return "Incorrect email or password.";
   if (["user_already_exists", "email_exists"].includes(error.code || "")) return "An account with this email already exists. Please sign in.";
   if (error.code === "weak_password") return "Choose a stronger password with at least 6 characters.";
   if (error.code === "email_not_confirmed") return "Confirm your email before signing in.";
   return error.message;
+}
+
+export function authException(error: unknown) {
+  return error instanceof Error ? error.message : "Could not connect. Please try again.";
 }

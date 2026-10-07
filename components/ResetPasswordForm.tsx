@@ -1,6 +1,6 @@
 ﻿"use client";
 import { createClient } from "@/lib/supabase/client";
-import { withAuthTimeout, authMessage } from "@/lib/authUi";
+import { withAuthTimeout, authMessage, authException } from "@/lib/authUi";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -16,12 +16,13 @@ export default function ResetPasswordForm() {
     setLoading(true);
     setError("");
     try {
-    const { error } = await withAuthTimeout(createClient().auth.updateUser({ password }));
+    const { error } = await withAuthTimeout((await createClient()).auth.updateUser({ password }));
     if (error) { setError(authMessage(error)); return; }
-    await withAuthTimeout(createClient().auth.signOut());
+    const { error: logoutError } = await withAuthTimeout((await createClient()).auth.signOut({ scope: "local" }));
+    if (logoutError) { setError("Your password was changed, but sign-out failed. Return to login and sign out before switching accounts."); return; }
     setDone(true);
     setTimeout(() => router.push("/login"), 1500);
-    } catch { setError("Request timed out or could not connect. Please try again."); }
+    } catch (error) { console.error("[PASSWORD_UPDATE] Request failed."); setError(authException(error)); }
     finally { setLoading(false); }
   }
 

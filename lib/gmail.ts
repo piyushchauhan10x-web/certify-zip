@@ -22,17 +22,18 @@ export function gmailConnected(user: GmailUser) {
   return Boolean(user.google_email && user.google_refresh_token && user.google_granted_scopes?.includes(GMAIL_SEND_SCOPE));
 }
 export async function accessToken(user: GmailUser, force = false): Promise<string> {
-  if (!user.google_granted_scopes?.includes(GMAIL_SEND_SCOPE)) throw new GmailError("RECONNECT_GMAIL", 401, "Connect Gmail and grant permission to send email.");
+  if (!user.google_granted_scopes?.includes(GMAIL_SEND_SCOPE)) throw new GmailError("GMAIL_PERMISSION_MISSING", 403, "Log out, reconnect Gmail, and tick the Gmail permission box.");
   if (!user.google_email || !user.google_refresh_token) throw new GmailError("RECONNECT_GMAIL", 401, "Gmail not connected. Reconnect Gmail to send from your account.");
   if (!force && user.google_access_token && user.google_token_expiry && user.google_token_expiry > Date.now() + 60000) return user.google_access_token;
-  if (!GOOGLE_OAUTH_CONFIG.clientId || !GOOGLE_OAUTH_CONFIG.clientSecret) throw new GmailError("SERVER_CONFIGURATION", 500, "Google OAuth server credentials are missing.");
+  if (!GOOGLE_OAUTH_CONFIG.clientId || !GOOGLE_OAUTH_CONFIG.clientSecret) throw new GmailError("SERVER_CONFIGURATION", 500, "Missing env: " + [!GOOGLE_OAUTH_CONFIG.clientId && "GOOGLE_CLIENT_ID", !GOOGLE_OAUTH_CONFIG.clientSecret && "GOOGLE_CLIENT_SECRET"].filter(Boolean).join(", "));
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: GOOGLE_OAUTH_CONFIG.clientId, client_secret: GOOGLE_OAUTH_CONFIG.clientSecret, refresh_token: user.google_refresh_token, grant_type: "refresh_token" }),
     signal: AbortSignal.timeout(10000),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => { console.error("[GMAIL_REFRESH] Invalid token response."); return {}; });
   if (!res.ok) {
+    if (res.status === 429) throw new GmailError("GMAIL_QUOTA", 429, "Google request quota reached. Try again later.");
     if (data.error === "invalid_grant") throw new GmailError("RECONNECT_GMAIL", 401, "Gmail access expired or was revoked. Reconnect Gmail.");
     throw new GmailError("GMAIL_REFRESH_FAILED", 500, "Could not refresh Gmail access. Try again later.");
   }
@@ -41,7 +42,7 @@ export async function accessToken(user: GmailUser, force = false): Promise<strin
   const expiry = Date.now() + Number(data.expires_in) * 1000;
   const { error } = await supabase.from("gmail_tokens").update({ google_access_token: data.access_token, google_token_expiry: expiry, google_granted_scopes: scopes, ...(data.refresh_token ? { google_refresh_token: data.refresh_token } : {}) }).eq("user_id", user.user_id);
   if (error) throw new GmailError("TOKEN_SAVE_FAILED", 500, "Could not save refreshed Gmail connection.");
-  if (!scopes?.includes(GMAIL_SEND_SCOPE)) throw new GmailError("RECONNECT_GMAIL", 401, "Reconnect Gmail and grant permission to send email.");
+  if (!scopes?.includes(GMAIL_SEND_SCOPE)) throw new GmailError("GMAIL_PERMISSION_MISSING", 403, "Log out, reconnect Gmail, and tick the Gmail permission box.");
   return data.access_token;
 }
 const header = (value: string) => value.replace(/[\r\n]/g, " ");
@@ -65,12 +66,12 @@ export async function sendCertEmail(p: { user: GmailUser; to: string; subject: s
   // Retry only a definitive authentication rejection, never an ambiguous send timeout.
   if (res.status === 401) { token = await accessToken(p.user, true); res = await upload(token); }
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
+    const data = await res.json().catch(() => { console.error("[GMAIL_SEND] Non-JSON provider error."); return {}; });
     const reasons = (data.error?.errors || []).map((e: { reason?: string }) => e.reason);
     if (res.status === 429 || reasons.some((r: string) => ["rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded", "quotaExceeded"].includes(r))) throw new GmailError("GMAIL_QUOTA", 429, "Gmail sending quota reached. Try again later.");
     if (res.status === 401) throw new GmailError("RECONNECT_GMAIL", 401, "Gmail access expired. Reconnect Gmail.");
-    if (res.status === 403) throw new GmailError("RECONNECT_GMAIL", 401, "Reconnect Gmail and grant permission to send email.");
+    if (res.status === 403) throw new GmailError("GMAIL_PERMISSION_MISSING", 403, "Log out, reconnect Gmail, and tick the Gmail permission box.");
     throw new GmailError("GMAIL_SEND_FAILED", 500, "Gmail could not send the certificate. Try again later.");
   }
-  return res.json();
+  return { ok: true };
 }

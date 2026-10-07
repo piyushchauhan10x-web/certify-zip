@@ -1,6 +1,6 @@
 ﻿"use client";
-import { createClient } from "@/lib/supabase/client";
-import { withAuthTimeout, authMessage } from "@/lib/authUi";
+import { createClient, getAuthConfig } from "@/lib/supabase/client";
+import { withAuthTimeout, authMessage, authException } from "@/lib/authUi";
 import { useState } from "react";
 
 export default function ForgotPasswordForm() {
@@ -13,11 +13,11 @@ export default function ForgotPasswordForm() {
     setLoading(true);
     setMessage("");
     try {
-    const { error } = await withAuthTimeout(createClient().auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/auth/callback?next=reset-password`,
+    const { error } = await withAuthTimeout((await createClient()).auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${(await getAuthConfig()).baseUrl}/auth/callback?next=/reset-password`,
     }));
     setMessage(error ? authMessage(error) : "If an account exists, check your email for a reset link.");
-    } catch { setMessage("Request timed out or could not connect. Please try again."); }
+    } catch (error) { console.error("[PASSWORD_RESET_EMAIL] Request failed."); setMessage(authException(error)); }
     finally { setLoading(false); }
   }
 

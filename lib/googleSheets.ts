@@ -25,7 +25,7 @@ export async function fetchSheetData(
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
     range: "A1:Z1000",
-  });
+  }, { timeout: 15000 });
 
   const rows = res.data.values;
   if (!rows || rows.length < 2) return [];

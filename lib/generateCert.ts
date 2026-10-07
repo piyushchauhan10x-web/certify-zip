@@ -16,6 +16,7 @@ export async function generateCertificate(
   canvas.height = template.height;
   const ctx = canvas.getContext("2d")!;
 
+  await document.fonts.ready;
   const img = await loadImage(template.imageData);
   ctx.drawImage(img, 0, 0, template.width, template.height);
 
@@ -45,7 +46,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = reject;
+    img.onerror = () => reject(new Error("Could not load certificate artwork. Re-upload the image and try again."));
     img.src = src;
   });
 }

@@ -13,6 +13,7 @@ export function parseExcelFile(file: File): Promise<Recipient[]> {
         const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
         resolve(rows.map(mapRowToRecipient));
       } catch (err) {
+        console.error("[EXCEL_PARSE] Could not parse spreadsheet.");
         reject(err);
       }
     };

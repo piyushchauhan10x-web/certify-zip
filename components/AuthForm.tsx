@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { withAuthTimeout, authMessage } from "@/lib/authUi";
+import { createClient, getAuthConfig } from "@/lib/supabase/client";
+import { withAuthTimeout, authMessage, authException } from "@/lib/authUi";
 import { useRouter } from "next/navigation";
 
 export default function AuthForm({ mode: initialMode }: { mode: "login" | "register" }) {
@@ -38,13 +38,13 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
     setLoading(true);
     setError("");
     try {
-      const { data, error } = await withAuthTimeout(createClient().auth.signInWithOAuth({
+      const { data, error } = await withAuthTimeout((await createClient(rememberMe)).auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback`, queryParams: { prompt: "select_account" } },
+        options: { redirectTo: `${(await getAuthConfig()).baseUrl}/auth/callback`, queryParams: { prompt: "select_account" } },
       }));
       if (error) { setError(authMessage(error)); return; }
       if (!data.url) setError("Google sign-in could not be started.");
-    } catch { setError("Google sign-in timed out or could not connect. Please try again."); }
+    } catch (error) { console.error("[GOOGLE_LOGIN] Could not start Google login."); setError(authException(error)); }
     finally { setLoading(false); }
   }
 
@@ -66,9 +66,9 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
     }
 
     try {
-      const client = createClient();
+      const client = await createClient(mode === "register" || rememberMe);
       const { data, error } = await withAuthTimeout(mode === "register"
-        ? client.auth.signUp({ email: email.trim(), password, options: { data: { name }, emailRedirectTo: `${window.location.origin}/auth/callback` } })
+        ? client.auth.signUp({ email: email.trim(), password, options: { data: { name }, emailRedirectTo: `${(await getAuthConfig()).baseUrl}/auth/callback` } })
         : client.auth.signInWithPassword({ email: email.trim(), password }));
       if (error) { setError(authMessage(error)); return; }
       if (mode === "register" && data.user?.identities?.length === 0) {
@@ -77,9 +77,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
       if (!data.session) { setError("Check your email to confirm your account, then sign in."); return; }
       router.push("/");
       router.refresh();
-    } catch {
-      setError("Sign-in timed out or could not connect. Please try again.");
-    } finally {
+    } catch (error) { console.error("[EMAIL_LOGIN] Sign-in request failed."); setError(authException(error)); } finally {
       setLoading(false);
     }
   }
@@ -320,6 +318,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
           )}
         </div>
 
+        <footer className="mt-4 flex justify-center gap-5 text-xs text-gray-500"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></footer>
       </div>
     </div>
   );

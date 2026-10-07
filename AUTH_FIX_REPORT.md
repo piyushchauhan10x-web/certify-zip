@@ -1,141 +1,98 @@
-# Certify authentication repair
+# Certify production hardening report
 
-## Findings
+Date: 7 October 2026. Files were edited and checked locally. No production deployment, Google/Supabase console changes, real account creation, password-reset email, or certificate email was performed.
 
-The Supabase project configured in the local environment was checked read-only.
-`users` exists, with `id`, `email`, `password_hash`, `google_access_token`,
-`google_refresh_token`, and `google_email`. It lacks `google_token_expiry` and
-`google_granted_scopes` (PostgreSQL error 42703). All four sampled password hashes
-are bcrypt; no plaintext or missing hashes were found. No values were logged.
-This does not prove Vercel points to the same database.
+## Root cause and evidence
 
-The previous session lookup explicitly selected the two missing columns, then
-returned null for every database error. Consequently a correct email/password
-could set a cookie and still appear logged out. Google callback also selected or
-wrote these fields, making account creation/connection fail on this schema.
+The local .env.local still contains SUPABASE_URL but does not contain NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. The old browser client throws for missing configuration. AuthForm caught every exception and replaced it with “Sign-in timed out or could not connect”, even when nothing timed out. This is a confirmed local cause; production's environment and active deployment were not inspected, so its precise cause remains unverified.
 
-Supabase credentials were captured at module initialization, with a hardcoded
-project URL fallback and no service-key validation. JWT_SECRET was already read
-at request time, but signup created the account before checking it. Email matching
-was case-sensitive, and database failures were mislabeled as bad credentials.
+The checkout already used Supabase Auth, not custom JWT authentication. There is no /api/auth/login route in this source. Historical production logs mentioning that route can indicate an older deployment or client, but those logs alone cannot establish what is currently deployed. /api/auth/me remains valid: it checks Supabase Auth and reports Gmail connection status.
 
-Google login requested identity, Gmail, and Sheets scopes together and could
-attach an identity to an already signed-in account rather than look up its email.
-Callback errors were not displayed by the login form. Login now looks up the
-verified Google email and never changes Gmail tokens. Gmail authorization is a
-separate flow bound to the current user and browser state. Sheets readonly scope
-stays in Connect Gmail to preserve the existing Sheets import feature.
+Browser Auth configuration now comes from /api/auth/config at request time. Only the public URL/key and canonical app URL are returned; privileged keys are rejected. Missing names are shown inline, and the login button recovers. Local HTTP and browser smoke checks confirmed this behavior.
 
-The reported configuration error means Google credentials or the application URL
-could not be resolved. `redirect_uri_mismatch` means the redirect URI is not an
-exact authorized URI for that OAuth client. `invalid_client` means Google rejected
-the client credentials. The specific deployed Google/Vercel settings have not
-been inspected or changed; local presence alone cannot establish their validity.
+## Audited surface
 
-Password reset used onboarding@resend.dev and ignored Resend errors, falsely
-reporting success. It now uses EMAIL_FROM when configured and returns
-"Password reset email is not available yet" for provider failures, including 403.
+- Pages: /, /login, /register (retained), /signup (added), /forgot-password, /reset-password, /privacy, /terms.
+- Auth handlers: /auth/callback, /api/auth/config (added), /api/auth/me, /api/auth/gmail/connect and callback, /api/auth/google (legacy URL returns explicit 410 JSON).
+- Feature handlers: /api/upload-url POST and DELETE, /api/send POST, /api/sheets POST, /api/health GET (added). Unreferenced /api/generate stub removed; real generation remains browser-side.
+- Session code: middleware.ts, lib/auth.ts, lib/supabase/client.ts, server.ts, config.ts, sessionCookies.ts.
+- Frontend: AuthForm, ForgotPasswordForm, ResetPasswordForm, ConnectGmail, SendPanel, GoogleSheetImport, UploadExcel, TemplateManager and PreviewGrid inspected; generation/import libraries inspected.
+- Historical public.users SQL remains as history, explicitly excluded from setup. Unused Resend password-reset function removed. No custom JWT login route remained to remove. Existing uncommitted OAuth files were incorporated rather than discarded.
 
-## Final behavior
+## Bugs and fixes
 
-- All auth routes run dynamically in Node.js; configuration is read at request time.
-- APP_URL is trimmed/unquoted with trailing slashes removed; fallback order is
-  forwarded protocol + host, VERCEL_PROJECT_PRODUCTION_URL, development localhost.
-- Login uses GOOGLE_REDIRECT_URI or /api/auth/google/callback on the derived URL.
-  Its exact value is signed into the browser flow cookie and reused at exchange.
-- Session JWT/cookie lasts 30 days: HttpOnly, Secure in production, SameSite=Lax,
-  Path=/, host-only (no Domain). OAuth state expires in 10 minutes.
-- Signup hashes with bcryptjs, validates password length including bcrypt's 72-byte
-  limit, and requires configuration before writes. Emails are trimmed and matched
-  case-insensitively with SQL wildcard characters escaped.
-- /api/auth/gmail/connect requests Gmail sending and existing Sheets import access,
-  offline access, consent, and incremental authorization. Callback stores granted
-  scopes and tokens on the connecting user's row, never on a global account.
-- /api/send requires that user's Gmail grant. Missing/revoked/unrefreshable access
-  returns 401 RECONNECT_GMAIL; renewable access tokens refresh per user.
-- Supabase upload route and certificate storage upload flow are unchanged.
-- Login/signup/reset requests have a 30-second browser timeout and release their
-  loading state in finally. Google callback failures have readable login messages.
+| Finding | Fix / remaining external action |
+|---|---|
+| Old local env name; required public Auth settings absent | Runtime public configuration, names-only error; set the two missing settings manually |
+| All login exceptions reported as timeout | Preserve readable exception/server messages; retain provider-specific credential/duplicate/weak-password messages |
+| Browser config depended on an old build | Load public configuration at request time; do not expose privileged keys |
+| Middleware ran on APIs/static assets and did not guard private pages | Explicit matcher/public pages, verified getUser, cookie-preserving redirects, bounded network requests |
+| Gmail table failure looked like a failed login | /api/auth/me returns the valid session plus a separate Gmail status error |
+| Remember me was inert | Session versus persistent cookie lifetime honored across browser writes and server refresh; deletion cookies preserved |
+| Logout could reject without recovery | Bounded local-session sign-out, visible error, loading state, redirect/refresh |
+| /signup absent | Add alias while preserving /register and current form design |
+| Reset redirect value inconsistent | Use /auth/callback?next=/reset-password; callback accepts safe reset target and exchanges PKCE code |
+| Recovery errors hidden; sign-out after reset unchecked | Real inline errors, rate-limit mapping, check logout result |
+| Legacy /api/auth/google starts wrong OAuth flow | Explicit 410 JSON directs clients to Supabase Google login; UI already uses signInWithOAuth |
+| Callback override could diverge from canonical APP_URL | One URL helper; remove GOOGLE_REDIRECT_URI override and raw Host fallback |
+| Gmail connection errors appeared as raw JSON navigation | ConnectGmail requests an OAuth URL as JSON and shows inline errors; legacy redirect flow still works |
+| Connect lacked stable unauthenticated code | 401 LOGIN_REQUIRED; signed, expiring, per-user state retained; final callback URI logged |
+| OAuth token database/config failures obscure | Exact missing config names and safe step diagnostics; per-user table and setup SQL documented |
+| Missing Gmail scope incorrectly returned 401 | 403 GMAIL_PERMISSION_MISSING with reconnect/checkbox guidance; denied consent also clears old tokens |
+| Refresh credentials missing without exact names | Report GOOGLE_CLIENT_ID and/or GOOGLE_CLIENT_SECRET names; revoked token maps to 401, quota to 429 |
+| PDFs not tied to owning account | Upload path is user UUID/random UUID.pdf; send/delete validate owner before accessing storage |
+| Large payload/HTML/header input insufficiently constrained | Small strict JSON schema, recipient/subject limits, escaped message HTML, PDF signature/size checks |
+| Resend fallback unreachable and raw provider errors possible | Only no-row users can use a currently verified domain; reject test sender; safe error/quota mapping |
+| Frontend fetches parsed JSON before checking status or lacked body deadlines | Shared response helper checks status, reads text safely, preserves server messages, bounds full body read |
+| Retries resend successful recipients | Sequential bulk loop preserves successes; retries only remaining recipients; final counts and per-recipient errors |
+| Upload failures can leave temporary objects | DELETE cleanup endpoint and browser cleanup; send cleanup remains in finally; abandoned sessions need administrative orphan cleanup |
+| Generation exception leaves button stuck | try/catch/finally, visible error, wait for document fonts, readable image-load failure |
+| Sheets requests could hang or hide permission errors | Provider timeout, scope check, clear 403 guidance, proper malformed-JSON response |
+| Some API routes lacked runtime/dynamic declarations | All remaining API routes explicitly Node/dynamic; longer handlers have duration budgets |
+| Mobile form text/control sizing incomplete | 16 px inputs through tablet widths, 44 px buttons, bounded previews, compact mobile step/progress, safe-area send control |
+| Privacy claims omitted server imports/PDF storage | Accurate processing/token/storage/deletion disclosure, no sale, contact address, fixed update date |
+| Footer policy links absent | Public Auth and workspace footer links |
+| .env ignore pattern incomplete / example incomplete | Ignore .env* except example; document every active configuration name and optional Resend settings |
+| No names-only health endpoint | Add /api/health; returns 503 with missing names or 200 when all required names are present |
+| Running dev process overwrites production manifests | Separate .next-dev from production .next; production build now succeeds |
 
-## Required setup checklist
+## Active environment-variable inventory
 
-### Supabase
+| Name | Requirement and use |
+|---|---|
+| NEXT_PUBLIC_SUPABASE_URL | Required: browser/server Auth and Storage/DB endpoint |
+| NEXT_PUBLIC_SUPABASE_ANON_KEY | Required: public anon or publishable key for Auth |
+| SUPABASE_SERVICE_KEY | Required for Gmail/storage: server-only DB, signed upload, token persistence and state signature |
+| GOOGLE_CLIENT_ID | Required for Gmail/Sheets OAuth; Supabase Google login also has separate dashboard provider setup |
+| GOOGLE_CLIENT_SECRET | Required for Gmail code exchange and refresh; server-only |
+| APP_URL | Recommended canonical production URL; required if no valid forwarded origin/platform fallback |
+| VERCEL_PROJECT_PRODUCTION_URL | Platform-supplied fallback when APP_URL and forwarded origin absent |
+| RESEND_API_KEY | Optional fallback; domain-read and email-send access required |
+| EMAIL_FROM | Optional fallback sender with a domain actually verified in Resend |
+| NODE_ENV | Framework-managed cookie security/development-only URL behavior |
 
-1. In the correct project's SQL Editor, run
-   supabase/migrations/202610060001_auth_schema.sql before deploying.
-2. Confirm the users table has all columns listed above, including the two metadata
-   columns. The migration also adds a case-insensitive unique email index and denies
-   direct anon/authenticated role access to users. Server access uses service_role.
-3. If the index reports duplicate emails differing only in casing, resolve account
-   ownership deliberately before rerunning; the migration never merges/deletes users.
-4. Keep existing certificates bucket/upload settings unchanged.
+All are documented in .env.example, including platform-managed names as comments. SUPABASE_URL, JWT_SECRET, FRONTEND_URL, GOOGLE_REDIRECT_URI and ENABLE_RESEND_FALLBACK are obsolete. VERCEL_OIDC_TOKEN is not read by application code. No env values were printed or changed.
 
-### Google Cloud / Google Auth Platform
+## Validation
 
-1. Select the project that owns the OAuth client. Under Clients (or APIs & Services
-   > Credentials), use an OAuth 2.0 client of type Web application.
-2. Register these exact Authorized redirect URIs, with no trailing slash:
-   - https://certify-zip.vercel.app/api/auth/google/callback
-   - https://certify-zip.vercel.app/api/auth/gmail/callback
-3. Authorized JavaScript origin: https://certify-zip.vercel.app (no callback path).
-4. Copy that same client's ID and corresponding secret into Vercel; do not mix
-   clients/projects or use an API key, service-account credential, or mobile client.
-5. Configure Branding/support email, Audience, and Data Access. Enable Gmail API
-   and Google Sheets API to preserve sending and Sheets import. Declare identity,
-   gmail.send, and spreadsheets.readonly scopes. Login itself requests only identity.
-6. While the audience is in Testing, add every intended tester under Test users.
-   For public access, publish and complete the verification Google requires for
-   the requested scopes. Testing Gmail refresh tokens can expire after seven days.
-7. For development only, also register http://localhost:3000/api/auth/google/callback
-   and http://localhost:3000/api/auth/gmail/callback and use a matching local APP_URL.
+- npm run build: PASS on the final code; all routes compiled/prerendered. Nonblocking webpack cache serialization notices remain; no TypeScript, route or prerender error remains.
+- npx tsc --noEmit: PASS.
+- scripts/check-app-url.cjs: PASS — canonical URL priority, production-only HTTPS, development fallback, cookies, missing names.
+- scripts/check-supabase-auth.cjs: PASS — verified getUser, signed state, tamper rejection, offline consent and per-user lookup.
+- scripts/check-gmail.cjs: PASS — complete 8 MB attachment, current-user sender, missing scope, invalid_grant, quota and refresh persistence.
+- scripts/check-production-flows.cjs: PASS — Remember me/deletion lifetimes, response body timeout, non-JSON and real errors, runtime config/privileged key guard, foreign path rejection without deletion, recipient validation, cleanup, no unverified fallback.
+- Local production HTTP smoke: /login, /signup, /forgot-password, /privacy, /terms returned 200. / returned 307 to login. /api/health and /api/auth/config returned 503 identifying the two missing public Supabase settings.
+- Local browser email-login failure smoke: submitted synthetic test values; inline missing-env error displayed and Sign In became enabled again. No request reached a real account service because configuration is missing.
+- Responsive login: document widths matched 360, 390 and 768 px with no horizontal scroll. Final 360 px DOM verification confirmed 16 px inputs and 44 px buttons. Authenticated workspace, real SMTP, recovery, OAuth consent and real sending remain pending configured-service acceptance checks.
 
-### Vercel
+The first build attempts failed because a running dev server wrote development manifests into .next. The old cache was moved to ignored .next-pre-hardening; development now uses .next-dev. Temporary preview servers were used only for verification.
 
-1. In certify-zip > Settings > Environment Variables, set for Production:
-   APP_URL=https://certify-zip.vercel.app
-   GOOGLE_REDIRECT_URI=https://certify-zip.vercel.app/api/auth/google/callback
-2. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from the same Web OAuth client.
-   Store raw values without surrounding quotes or whitespace.
-3. Set SUPABASE_URL and SUPABASE_SERVICE_KEY from the same Supabase project with
-   the migration applied. Use its server-only service-role key, never an anon key.
-4. Set a long random JWT_SECRET. Keep it stable across deployments; rotation logs
-   everyone out. Never prefix credentials with NEXT_PUBLIC_.
-5. For password reset, set RESEND_API_KEY and EMAIL_FROM using a verified Resend
-   domain; onboarding@resend.dev cannot send normal reset mail to arbitrary users.
-6. COOKIE_DOMAIN is no longer used; cookies are host-only. Prefer the production
-   hostname for OAuth testing. If using previews/custom domains, authorize both
-   callback URLs for each domain and set APP_URL/redirect consistently for that
-   environment. Vercel supplies VERCEL_PROJECT_PRODUCTION_URL as a fallback.
-7. Redeploy after setting environment variables; they do not repair an existing
-   deployment automatically. Clear old cookies once if changing domains.
+## SQL and manual actions
 
-### Manual verification after deploy
+Run the complete [supabase/gmail_tokens.sql](supabase/gmail_tokens.sql) in Supabase. The exact Supabase, Google Cloud, Vercel and post-deployment acceptance checklist is in [supabase/AUTH_SETUP.md](supabase/AUTH_SETUP.md). No SQL was executed against production here.
 
-1. Register with email/password; reach the workspace without sending mail.
-2. Log out, log in with the same credentials and different email casing; reload
-   and confirm the session persists. Wrong password is 401; duplicate signup is 409.
-3. Continue with Google; confirm only identity access is requested, then land in
-   the workspace even without Gmail consent. Cancel login and check readable error.
-4. Before connecting Gmail, sending returns 401 RECONNECT_GMAIL.
-5. Connect Gmail, grant sending permission, confirm the sender email; send a test
-   certificate and check its PDF. Repeat with another user to check sender isolation.
-6. Deny Gmail permission and confirm it is not marked connected. Revoke Google's
-   app access and confirm sending requests reconnection without logging out.
-7. Import an existing Google Sheet after connecting to confirm the retained scope.
-8. Test password reset. With a verified sender it delivers; with a Resend test-sender
-   restriction it returns the readable unavailable message without crashing.
-9. Simulate a failed/slow auth request; the button must become usable within 30s.
+Production cannot be certified for arbitrary users until environment settings, schema/bucket setup, Supabase custom SMTP, Google production publishing/verification and a deployed revision are complete. Google/provider quotas and Workspace policies still apply. In-memory app rate limiting is per process, not a distributed quota. Cleanup failures and abandoned uploads require a Storage API cleanup policy. Delivery timeouts can be ambiguous; check Sent before retrying.
 
-Reference: https://developers.google.com/identity/protocols/oauth2/web-server
+## Changed files and diff
 
-## Verification commands
-
-- npm run build
-- node scripts/check-auth.cjs (mock providers/database; no external writes)
-- node scripts/check-gmail.cjs (attachment integrity, sender isolation, scopes,
-  revocation, quota handling, per-user token refresh)
-- git diff --check
-- git diff --stat
-
-No deployment, production environment edit, database migration, or outbound email
-was performed as part of the local repair.
+The exact tracked-file output of git diff --stat is saved in [git-diff-stat.txt](git-diff-stat.txt). Git diff does not include untracked new files; those are listed separately in [changed-files.txt](changed-files.txt). The inventory includes pre-existing uncommitted OAuth work incorporated in this change. Generated tsconfig.tsbuildinfo was restored to its unchanged initial contents after type checking.

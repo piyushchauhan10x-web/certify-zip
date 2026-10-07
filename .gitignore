@@ -1,11 +1,13 @@
 node_modules
 .next
-.env
-.env.local
-.env*.local
+.env*
 !.env.example
 *.log
 .vercel
 
 
 .npm-cache/
+
+.next-pre-hardening/
+
+.next-dev/

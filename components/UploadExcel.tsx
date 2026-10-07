@@ -18,6 +18,7 @@ export default function UploadExcel({ onParsed }: { onParsed: (r: Recipient[]) =
       const parsed = await parseExcelFile(file);
       onParsed(validateRecipients(parsed));
     } catch (err: any) {
+      console.error("[EXCEL_IMPORT] Recipient list parsing failed.");
       setError('Parse failed: ' + err.message);
     } finally {
       setLoading(false);

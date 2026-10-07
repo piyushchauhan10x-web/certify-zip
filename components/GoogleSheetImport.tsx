@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { request } from "@/lib/http";
 import { Recipient } from "@/types";
 
 export default function GoogleSheetImport({ onImported }: { onImported: (r: Recipient[]) => void }) {
@@ -12,18 +13,15 @@ export default function GoogleSheetImport({ onImported }: { onImported: (r: Reci
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/sheets", {
+      const data = await request<{ recipients: Recipient[] }>("/api/sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sheetUrl: url }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Failed to import");
-        return;
-      }
+
       onImported(data.recipients);
     } catch (err: any) {
+      console.error("[SHEETS_IMPORT] Could not import sheet.");
       setError("Failed to import: " + err.message);
     } finally {
       setLoading(false);

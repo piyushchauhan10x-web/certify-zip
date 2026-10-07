@@ -3,7 +3,7 @@
     <main className="max-w-2xl mx-auto px-6 py-16 text-text">
       <h1 className="font-display font-bold text-2xl mb-6">Terms of Service</h1>
       <div className="space-y-4 text-sm text-muted leading-relaxed">
-        <p>Last updated: {new Date().toLocaleDateString()}</p>
+        <p>Last updated: 7 October 2026</p>
         <h2 className="text-text font-semibold text-base mt-6">Use of service</h2>
         <p>Certify is provided as-is for generating and sending certificates. You are responsible for the accuracy of data you upload and emails you send.</p>
         <h2 className="text-text font-semibold text-base mt-6">Acceptable use</h2>

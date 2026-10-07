@@ -1,11 +1,14 @@
 import 'server-only';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { timedFetch } from './http';
+import { cleanEnvValue } from './appUrl';
 import { requireEnv } from './authErrors';
 
 // Lazily read credentials when a handler accesses the client, never during build.
 export function getSupabase() {
   requireEnv('NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_KEY');
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!.trim(), process.env.SUPABASE_SERVICE_KEY!.trim(), {
+  return createClient(cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL), cleanEnvValue(process.env.SUPABASE_SERVICE_KEY), {
+    global: { fetch: timedFetch },
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

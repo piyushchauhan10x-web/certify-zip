@@ -1,93 +1,32 @@
-import { Resend } from "resend";
-
-export async function sendPasswordResetEmail(to: string, resetLink: string) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey || apiKey === "re_placeholder") {
-    console.error("[RESEND_ERROR] RESEND_API_KEY environment variable is not configured or is a placeholder!");
-    return { error: new Error("RESEND_API_KEY environment variable is missing.") };
-  }
-
-  try {
-    const resend = new Resend(apiKey);
-    const result = await resend.emails.send({
-      from: process.env.EMAIL_FROM?.trim() || "Certify <onboarding@resend.dev>",
-      to,
-      subject: "Reset your Certify password",
-      html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2>Reset your password</h2>
-          <p>Click the link below to reset your Certify password. This link expires in 30 minutes.</p>
-          <a href="${resetLink}" style="display:inline-block;background:#6C63FF;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;margin-top:12px;">Reset Password</a>
-          <p style="color:#888;font-size:13px;margin-top:20px;">If you didn't request this, ignore this email.</p>
-        </div>
-      `,
-    });
-
-    if (result.error) {
-      console.error("[RESEND_ERROR] Password reset email is not available yet");
-    }
-    return result;
-  } catch (err: any) {
-    console.error("[RESEND_ERROR] Password reset email is not available yet");
-    return { error: err };
-  }
-}
-
-interface SendCertParams {
-  to: string;
-  subject: string;
-  bodyHtml: string;
-  fromName?: string;
-  pdfBuffer: Buffer;
-  attachmentName: string;
-}
-
-export async function sendCertEmailViaResend(p: SendCertParams) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey || apiKey === "re_placeholder") {
-    console.error("[RESEND_ERROR] RESEND_API_KEY environment variable is missing!");
-    throw new Error("RESEND_API_KEY environment variable is missing.");
-  }
-
-  if (!await hasVerifiedResendSender()) throw new Error("Connect Gmail or configure a verified sender domain.");
-  const resend = new Resend(apiKey);
-  const defaultFrom = process.env.EMAIL_FROM!;
-
-  let fromHeader = defaultFrom;
-  if (p.fromName) {
-    const emailMatch = defaultFrom.match(/<([^>]+)>/);
-    const emailAddr = emailMatch ? emailMatch[1] : defaultFrom;
-    fromHeader = `${p.fromName} <${emailAddr}>`;
-  }
-
-  const result = await resend.emails.send({
-    from: fromHeader,
-    to: p.to,
-    subject: p.subject,
-    html: p.bodyHtml,
-    attachments: [
-      {
-        filename: p.attachmentName,
-        content: p.pdfBuffer,
-      },
-    ],
-  });
-
-  if (result.error) {
-    console.error("[RESEND_API_ERROR] Failed to send certificate email:", result.error);
-    throw new Error(result.error.message || "Resend API error");
-  }
-
-  return result;
-}
-
-// Disabled by default: certificate emails should come from the user's own Gmail.
+import { GmailError } from "./gmail";
+import { cleanEnvValue } from "./appUrl";
+// Verification uses the provider's domain status, not a flag or an assumed address.
 export async function hasVerifiedResendSender(): Promise<boolean> {
-  if (process.env.ENABLE_RESEND_FALLBACK !== "true" || !process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) return false;
-  const email = process.env.EMAIL_FROM.match(/<([^>]+)>/)?.[1] || process.env.EMAIL_FROM.trim();
+  const key = cleanEnvValue(process.env.RESEND_API_KEY);
+  const from = cleanEnvValue(process.env.EMAIL_FROM);
+  if (!key || !from) return false;
+  const email = from.match(/<([^>]+)>/)?.[1] || from;
   const domain = email.split("@")[1]?.toLowerCase();
   if (!domain || domain === "resend.dev") return false;
-  const result = await new Resend(process.env.RESEND_API_KEY).domains.list();
-  if (result.error) return false;
-  return Boolean(result.data?.data.some(d => d.name.toLowerCase() === domain && d.status === "verified"));
+  const response = await fetch("https://api.resend.com/domains", { headers: { Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(10000) });
+  if (!response.ok) { console.error("[RESEND_DOMAIN] Could not verify sender domain."); return false; }
+  const data = await response.json();
+  return Boolean(data.data?.some((d: { name: string; status: string }) => d.name.toLowerCase() === domain && d.status === "verified"));
+}
+export async function sendCertEmailViaResend(p: { to: string; subject: string; bodyHtml: string; fromName?: string; pdfBuffer: Buffer; attachmentName: string }) {
+  const from = cleanEnvValue(process.env.EMAIL_FROM);
+  const email = from.match(/<([^>]+)>/)?.[1] || from;
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST", signal: AbortSignal.timeout(25000),
+    headers: { Authorization: 'Bearer ' + cleanEnvValue(process.env.RESEND_API_KEY), "Content-Type": "application/json" },
+    body: JSON.stringify({ from: p.fromName ? p.fromName.replace(/["<>\r\n]/g, '') + ' <' + email + '>' : from,
+      to: [p.to], subject: p.subject, html: p.bodyHtml,
+      attachments: [{ filename: p.attachmentName, content: p.pdfBuffer.toString("base64") }],
+    }),
+  });
+  if (!response.ok) {
+    console.error("[RESEND_SEND] Certificate delivery rejected.");
+    if (response.status === 429) throw new GmailError("SEND_QUOTA", 429, "Email sending quota reached. Try later.");
+    throw new GmailError("RESEND_UNAVAILABLE", 500, "The fallback sender is unavailable. Connect Gmail or ask the administrator to verify the EMAIL_FROM domain and sender permissions.");
+  }
 }

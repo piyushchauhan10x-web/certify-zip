@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import ConnectGmail from "@/components/ConnectGmail";
+import { request, HttpError } from "@/lib/http";
+import { authException, withAuthTimeout } from "@/lib/authUi";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import UploadExcel from "@/components/UploadExcel";
@@ -24,6 +27,8 @@ const STEPS = [
 
 export default function Home() {
   const router = useRouter();
+  const [pageError, setPageError] = useState("");
+  const [loggingOut, setLoggingOut] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState("");
@@ -47,47 +52,36 @@ export default function Home() {
       }
     }
 
-    fetch("/api/auth/me", { signal: AbortSignal.timeout(30000) })
-      .then(async (r) => {
-        const data = await r.json();
-        if (r.status === 401) { router.push("/login"); return { loggedIn: false }; }
-        if (!r.ok) throw new Error(data.error || "Could not check your session.");
-        return data;
-      })
-      .then((data) => {
-        if (!data.loggedIn) {
-          if (new URLSearchParams(window.location.search).get("gmail") === "denied") return;
-          router.push("/login");
-          return;
-        }
-        setGoogleConnected(data.googleConnected);
-        setGoogleEmail(data.googleEmail || "");
-        setUserEmail(data.email || "");
-        setAuthChecked(true);
-      }).catch(() => router.push("/login?error=session_check"));
+    request<{ loggedIn: boolean; googleConnected: boolean; googleEmail?: string; email?: string; connectionError?: string }>("/api/auth/me")
+      .then(data => {
+        setGoogleConnected(data.googleConnected); setGoogleEmail(data.googleEmail || "");
+        setUserEmail(data.email || ""); setAuthChecked(true);
+        if (data.connectionError) setPageError(data.connectionError);
+      }).catch(error => {
+        console.error("[SESSION_CHECK] Could not load session.");
+        if (error instanceof HttpError && error.status === 401) router.replace("/login");
+        else setPageError(authException(error));
+      });
   }, [router]);
 
   async function handleLogout() {
-    const { error } = await createClient().auth.signOut();
-    if (error) { window.alert("Could not sign out. Please try again."); return; }
-    router.push("/login");
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      const { error } = await withAuthTimeout((await createClient()).auth.signOut({ scope: "local" }));
+      if (error) throw error;
+      router.replace("/login"); router.refresh();
+    } catch (error) { console.error("[LOGOUT] Sign-out failed."); setPageError(authException(error)); }
+    finally { setLoggingOut(false); }
   }
-
   async function handleGenerate() {
-    if (templates.length === 0) return;
-    setGenerating(true);
-    setGenProgress({ done: 0, total: recipients.length });
-    const results = await generateAll(recipients, templates, (done, total) => setGenProgress({ done, total }));
-    setCerts(results);
-    setGenerating(false);
+    if (!templates.length || generating) return;
+    setGenerating(true); setPageError(""); setGenProgress({ done: 0, total: recipients.length });
+    try { setCerts(await generateAll(recipients, templates, (done, total) => setGenProgress({ done, total }))); }
+    catch (error) { console.error("[GENERATE] Certificate generation failed."); setPageError(authException(error)); }
+    finally { setGenerating(false); }
   }
-
-  if (!authChecked) return gmailDenied ? (
-    <div className="max-w-xl mx-auto p-6 text-amber-900">
-      <p>Tick the Gmail permission box on the Google screen</p>
-      <a href="/api/auth/gmail/connect" className="text-sm font-semibold text-[#F9654B] underline">Reconnect Gmail</a>
-    </div>
-  ) : null;
+  if (!authChecked) return <div className="p-6 max-w-xl mx-auto"><p role="alert">{pageError || "Checking your session…"}</p>{pageError && <a href="/login" className="underline">Back to login</a>}</div>;
 
   const validCount = recipients.filter((r) => r.status !== "failed").length;
   const failedCount = recipients.length - validCount;
@@ -113,8 +107,9 @@ export default function Home() {
       />
 
       <div className="relative z-10">
+      {pageError && <p role="alert" className="p-4 text-sm text-red-700 bg-red-50 break-words">{pageError}</p>}
         {/* 1. TOP HEADER */}
-      <header className="h-11 border-b border-gray-200 bg-white sticky top-0 z-30 flex items-center">
+      <header className="min-h-[44px] border-b border-gray-200 bg-white sticky top-0 z-30 flex items-center">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 w-full flex items-center justify-between">
           {/* LEFT: Logo & Brand */}
           <div className="flex items-center gap-2">
@@ -129,7 +124,7 @@ export default function Home() {
           {/* RIGHT: Status & User Avatar */}
           <div className="flex items-center gap-3 relative">
             <span className="text-xs text-gray-400 font-normal">Draft certificate</span>
-            
+
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold flex items-center justify-center border border-gray-200 hover:border-gray-300 transition-colors"
@@ -149,16 +144,17 @@ export default function Home() {
                       Gmail: {googleEmail}
                     </div>
                   ) : (
-                    <a
-                      href="/api/auth/gmail/connect"
+                    <ConnectGmail
+
                       className="text-[#F9654B] hover:underline font-medium block"
                     >
                       + Connect Gmail account
-                    </a>
+                    </ConnectGmail>
                   )}
                 </div>
                 <button
                   onClick={handleLogout}
+                    disabled={loggingOut}
                   className="w-full text-left text-rose-600 hover:text-rose-700 font-medium pt-1"
                 >
                   Sign out
@@ -184,12 +180,12 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <a
-              href="/api/auth/gmail/connect"
+            <ConnectGmail
+
               className="bg-[#F9654B] hover:bg-[#E04F34] text-white text-xs font-semibold px-4 py-2.5 min-h-[44px] sm:min-h-0 rounded-xl transition-colors shrink-0 flex items-center justify-center shadow-xs"
             >
               Reconnect
-            </a>
+            </ConnectGmail>
           </div>
         </div>
       )}
@@ -212,30 +208,6 @@ export default function Home() {
               className="h-full bg-[#F9654B] transition-all duration-300"
               style={{ width: `${((currentStepIndex + 1) / 5) * 100}%` }}
             />
-          </div>
-          {/* Horizontally Scrollable Step Pills (No Clipping) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar px-3 py-2 min-w-0 max-w-full">
-            {STEPS.map((step, idx) => {
-              const isCurrent = idx === currentStepIndex;
-              return (
-                <button
-                  key={step.num}
-                  onClick={() => {
-                    if (recipients.length > 0) setActiveWorkflowStep(idx);
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs shrink-0 transition-colors ${
-                    isCurrent
-                      ? "bg-[#FFF0ED] text-[#F9654B] font-semibold border border-[#F9654B]/30"
-                      : "bg-gray-50 text-gray-500 font-normal border border-gray-200"
-                  }`}
-                >
-                  <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-bold ${isCurrent ? "bg-[#F9654B] text-white" : "bg-gray-200 text-gray-600"}`}>
-                    {step.num}
-                  </span>
-                  <span>{step.label}</span>
-                </button>
-              );
-            })}
           </div>
         </div>
 
@@ -317,7 +289,7 @@ export default function Home() {
               </svg>
               Upload file
             </button>
-            
+
             <button
               onClick={() => setImportMode("sheet")}
               className={`pb-2.5 text-xs sm:text-sm font-medium flex items-center gap-2 transition-colors min-h-[44px] ${
@@ -369,7 +341,7 @@ export default function Home() {
 
           {/* 7. BOTTOM STICKY ACTION AREA (Safe Area Padding for Mobile) */}
           <div className="border-t border-gray-200 my-6 hidden sm:block" />
-          
+
           <div
             className="fixed sm:relative bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md sm:bg-transparent border-t sm:border-0 border-gray-200 p-3 sm:p-0 flex justify-end shadow-lg sm:shadow-none"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
@@ -479,7 +451,7 @@ export default function Home() {
               <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Direct Delivery Engine</h2>
               <p className="text-xs text-gray-500">Batch email generated certificate PDFs directly to recipient mailboxes.</p>
               {!googleConnected && (
-                <a href="/api/auth/gmail/connect" className="text-xs text-[#F9654B] mt-2 font-medium underline block">Connect Gmail</a>
+                <ConnectGmail  className="text-xs text-[#F9654B] mt-2 font-medium underline block">Connect Gmail</ConnectGmail>
               )}
             </div>
             <SendPanel certs={certs} recipients={recipients} />
@@ -488,6 +460,7 @@ export default function Home() {
       )}
 
       </div>
+      <footer className="flex justify-center gap-6 py-8 pb-24 sm:pb-8 text-sm"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></footer>
     </main>
   );
 }

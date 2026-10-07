@@ -19,11 +19,11 @@ try {
   process.env.APP_URL = ' "https://canonical.example///" ';
   assert.equal(getAppUrl(request), 'https://canonical.example');
   process.env.GOOGLE_REDIRECT_URI = ' https://certify-zip.vercel.app/api/auth/gmail/callback ';
-  assert.equal(getGoogleRedirectUri(request), 'https://certify-zip.vercel.app/api/auth/gmail/callback');
+  assert.equal(getGoogleRedirectUri(request), 'https://canonical.example/api/auth/gmail/callback');
   delete process.env.APP_URL;
   process.env.VERCEL_PROJECT_PRODUCTION_URL = 'certify-zip.vercel.app';
   assert.equal(getAppUrl(), 'https://certify-zip.vercel.app');
-  assert.equal(getAppUrl({ headers: new Headers({ host: 'other.example' }) }), 'https://other.example');
+  assert.equal(getAppUrl({ headers: new Headers({ host: 'other.example' }) }), 'https://certify-zip.vercel.app');
   delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
   assert.throws(() => getAppUrl(), /Missing env: APP_URL or VERCEL_PROJECT_PRODUCTION_URL/);
   assert.throws(() => getAppUrl({ headers: new Headers({ 'x-forwarded-host': 'localhost:3000', 'x-forwarded-proto': 'http' }) }), /production HTTPS URL/);
@@ -48,11 +48,11 @@ try {
   // Reads reflect changes after the module was loaded, rather than a cached snapshot.
   delete process.env.GOOGLE_CLIENT_SECRET;
   assert.throws(() => getGoogleLoginConfig(request), /^Error: Missing env: GOOGLE_CLIENT_SECRET$/);
-  assert.throws(() => getGoogleLoginConfig({ headers: new Headers() }), /^Error: Missing env: GOOGLE_CLIENT_SECRET, APP_URL$/);
+  assert.throws(() => getGoogleLoginConfig({ headers: new Headers() }), /^Error: Missing env: GOOGLE_CLIENT_SECRET$/);
   delete process.env.GOOGLE_CLIENT_ID;
   assert.throws(() => getGoogleLoginConfig(request), /^Error: Missing env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET$/);
   process.env.GOOGLE_REDIRECT_URI = 'https://certify-zip.vercel.app/wrong';
-  assert.throws(() => getGoogleLoginConfig(request), /Missing env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET; Invalid configuration: GOOGLE_REDIRECT_URI/);
+  assert.throws(() => getGoogleLoginConfig(request), /Missing env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET/);
   console.log('PASS: missing APP_URL production request, env normalization, URL fallback order, callback URI, secure cookies, missing credential names, development-only localhost');
 } finally {
   for (const key of Object.keys(process.env)) if (!(key in original)) delete process.env[key];

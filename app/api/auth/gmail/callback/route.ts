@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     };
     const context = readOAuthContext(req);
     const user = await getCurrentUser();
-    if (!user) return NextResponse.json({ error: "Please log in." }, { status: 401 });
+    if (!user) return NextResponse.json({ code: "LOGIN_REQUIRED", error: "Please log in." }, { status: 401 });
     if (!context || context.userId !== user.id || context.redirectUri !== config.redirectUri) return redirect("reconnect");
     if (req.nextUrl.searchParams.has("error")) return redirect("denied");
     const code = req.nextUrl.searchParams.get("code");
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       const scopes = (tokens.scope || "").split(/\s+/).filter(Boolean);
       if (!scopes.includes(GMAIL_SEND_SCOPE)) {
         const { error } = await supabase.from("gmail_tokens").update({ google_granted_scopes: scopes, google_access_token: null, google_refresh_token: null, google_email: null, google_token_expiry: null }).eq("user_id", user.id);
-        if (error) return redirect("reconnect");
+        if (error) { console.error("[GMAIL_TOKEN_SAVE] Could not persist Gmail credentials."); return redirect("reconnect"); }
         return redirect("denied");
       }
       client.setCredentials(tokens);
