@@ -1,0 +1,12 @@
+ .env.example                 |  5 ++-
+ AUTH_FIX_REPORT.md           |  4 +--
+ app/api/auth/config/route.ts | 11 +++++--
+ app/api/health/route.ts      | 10 +++++-
+ app/auth/callback/route.ts   | 18 +++++++++--
+ components/AuthForm.tsx      | 75 +++++++++++++++++++++++++++-----------------
+ lib/authUi.ts                | 27 ++++++++++++++--
+ lib/http.ts                  | 13 ++++++++
+ lib/supabase/client.ts       |  9 +++---
+ middleware.ts                |  2 +-
+ supabase/AUTH_SETUP.md       |  2 +-
+ 11 files changed, 130 insertions(+), 46 deletions(-)

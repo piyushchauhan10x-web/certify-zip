@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient, getAuthConfig } from "@/lib/supabase/client";
-import { withAuthTimeout, authMessage, authException } from "@/lib/authUi";
+import { withAuthTimeout, authFailure, redirectToGoogle } from "@/lib/authUi";
 import { useRouter } from "next/navigation";
 
 export default function AuthForm({ mode: initialMode }: { mode: "login" | "register" }) {
@@ -15,8 +15,23 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [configReady, setConfigReady] = useState(false);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configError, setConfigError] = useState("");
 
   const router = useRouter();
+  async function checkConfig(refresh = false) {
+    setConfigReady(false); setConfigLoading(true); setConfigError("");
+    try { await getAuthConfig(refresh); setConfigReady(true); }
+    catch (error) { setConfigError(authFailure("AUTH_CONFIG_LOAD", error)); }
+    finally { setConfigLoading(false); }
+  }
+  useEffect(() => {
+    void checkConfig();
+    const restored = () => setLoading(false);
+    window.addEventListener("pageshow", restored);
+    return () => window.removeEventListener("pageshow", restored);
+  }, []);
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("error");
     const messages: Record<string, string> = {
@@ -29,23 +44,24 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
       oauth_redirect: "Google sign-in is unavailable because its callback URL is not authorized in Google Cloud.",
       session_check: "Could not check your session. Please try signing in again.",
     };
-    if (code) setError(messages[code] || "Sign-in failed. Please try again.");
+    if (code) {
+      const detail = new URLSearchParams(window.location.search).get("message");
+      setError(authFailure("AUTH_CALLBACK", new Error(detail || messages[code] || "Sign-in callback failed. Please retry.")));
+    }
   }, []);
 
-  async function handleGoogle(e: React.MouseEvent<HTMLAnchorElement>) {
-    e.preventDefault();
-    if (loading) return;
-    setLoading(true);
-    setError("");
+  async function handleGoogle() {
+    if (loading || !configReady) return;
+    setLoading(true); setError("");
+    let redirectStarted = false;
     try {
-      const { data, error } = await withAuthTimeout((await createClient(rememberMe)).auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: `${(await getAuthConfig()).baseUrl}/auth/callback`, queryParams: { prompt: "select_account" } },
-      }));
-      if (error) { setError(authMessage(error)); return; }
-      if (!data.url) setError("Google sign-in could not be started.");
-    } catch (error) { console.error("[GOOGLE_LOGIN] Could not start Google login."); setError(authException(error)); }
-    finally { setLoading(false); }
+      const config = await getAuthConfig();
+      if (config.googleProviderEnabled === false) throw new Error("Supabase Google provider is not enabled");
+      const client = await createClient(rememberMe);
+      await redirectToGoogle(client, config.baseUrl + "/auth/callback", url => window.location.assign(url));
+      redirectStarted = true;
+    } catch (error) { setError(authFailure("GOOGLE_SIGN_IN", error)); }
+    finally { if (!redirectStarted) setLoading(false); }
   }
 
   function switchMode(target: "login" | "register") {
@@ -56,11 +72,12 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading || !configReady) return;
     setLoading(true);
     setError("");
 
     if (mode === "register" && password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError(authFailure("SIGNUP_VALIDATION", new Error("Passwords do not match")));
       setLoading(false);
       return;
     }
@@ -70,14 +87,14 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
       const { data, error } = await withAuthTimeout(mode === "register"
         ? client.auth.signUp({ email: email.trim(), password, options: { data: { name }, emailRedirectTo: `${(await getAuthConfig()).baseUrl}/auth/callback` } })
         : client.auth.signInWithPassword({ email: email.trim(), password }));
-      if (error) { setError(authMessage(error)); return; }
+      if (error) { setError(authFailure(mode === "register" ? "EMAIL_SIGNUP" : "EMAIL_SIGN_IN", error)); return; }
       if (mode === "register" && data.user?.identities?.length === 0) {
-        setError("An account with this email already exists. Please sign in."); return;
+        setError(authFailure("EMAIL_SIGNUP", new Error("An account with this email already exists. Please sign in."))); return;
       }
-      if (!data.session) { setError("Check your email to confirm your account, then sign in."); return; }
+      if (!data.session) { setError(authFailure("EMAIL_CONFIRMATION", new Error("Email confirmation is required by this Supabase project. Check your email, or ask the administrator to disable Confirm email."))); return; }
       router.push("/");
       router.refresh();
-    } catch (error) { console.error("[EMAIL_LOGIN] Sign-in request failed."); setError(authException(error)); } finally {
+    } catch (error) { setError(authFailure("EMAIL_SIGN_IN", error)); } finally {
       setLoading(false);
     }
   }
@@ -122,11 +139,11 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
         </p>
 
         {/* Google OAuth Option */}
-        <a
-          href="#"
+        <button
+          type="button"
           onClick={handleGoogle}
-          aria-disabled={loading}
-          className="flex items-center justify-center gap-3 w-full py-3 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 transition-all text-xs sm:text-sm font-medium text-gray-700 shadow-xs mb-5 group min-h-[44px]"
+          disabled={loading || !configReady}
+          className="flex items-center justify-center gap-3 w-full py-3 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 transition-all text-xs sm:text-sm font-medium text-gray-700 shadow-xs mb-5 group min-h-[44px] disabled:opacity-50"
         >
           <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
             <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z" />
@@ -135,7 +152,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
             <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2-6.4-4.8L1.9 16.4C3.7 20.1 7.5 23 12 23z" />
           </svg>
           <span>Continue with Google</span>
-        </a>
+        </button>
 
         {/* Divider */}
         <div className="relative flex items-center justify-center mb-5">
@@ -272,14 +289,14 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
           )}
 
           {/* Error Banner */}
-          {error && (
-            <p className="text-xs text-rose-600 font-medium">{error}</p>
-          )}
+          {(configError || error) && <p role="alert" className="text-xs text-rose-600 font-medium break-words">{configError || error}</p>}
+          {configLoading && <p role="status" className="text-xs text-gray-500">Checking sign-in configuration…</p>}
+          {configError && <button type="button" onClick={() => void checkConfig(true)} disabled={configLoading} className="text-xs text-[#F9654B] underline">Retry configuration</button>}
 
           {/* Submit Button (Matches "Continue to design ->" accent button) */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !configReady}
             className="w-full rounded-xl bg-[#F9654B] hover:bg-[#E04F34] text-white text-xs sm:text-sm font-medium py-3 min-h-[44px] shadow-xs transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-1"
           >
             <span>{loading ? "Verifying..." : mode === "login" ? "Sign In" : "Create account"}</span>

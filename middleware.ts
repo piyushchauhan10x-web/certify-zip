@@ -6,7 +6,7 @@ import { timedFetch } from "./lib/http";
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
   const path = request.nextUrl.pathname;
-  const isPublic = ["/login", "/signup", "/register", "/forgot-password", "/privacy", "/terms"].includes(path) || path.startsWith("/auth/");
+  const isPublic = ["/login", "/signup", "/register", "/forgot-password", "/reset-password", "/privacy", "/terms", "/api/health"].includes(path) || path.startsWith("/auth/") || path.startsWith("/api/auth/");
   if (isPublic) return response;
   try {
     const { url, key } = publicAuthConfig();

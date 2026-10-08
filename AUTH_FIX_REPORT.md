@@ -1,10 +1,10 @@
 # Certify production hardening report
 
-Date: 7 October 2026. Files were edited and checked locally. No production deployment, Google/Supabase console changes, real account creation, password-reset email, or certificate email was performed.
+Date: 7 October 2026. Files were edited and checked locally. No production deployment, Google/Supabase console changes, real account creation, password-reset email, or certificate email was performed. A subsequent read-only production audit and login follow-up are documented in LOGIN_DIAGNOSTICS_REPORT.md.
 
 ## Root cause and evidence
 
-The local .env.local still contains SUPABASE_URL but does not contain NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. The old browser client throws for missing configuration. AuthForm caught every exception and replaced it with “Sign-in timed out or could not connect”, even when nothing timed out. This is a confirmed local cause; production's environment and active deployment were not inspected, so its precise cause remains unverified.
+At the initial audit, local .env.local contained SUPABASE_URL but does not contain NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. The old browser client throws for missing configuration. AuthForm caught every exception and replaced it with “Sign-in timed out or could not connect”, even when nothing timed out. This is a confirmed local cause; the follow-up live production audit also confirmed both names missing via /api/health (503). See LOGIN_DIAGNOSTICS_REPORT.md for the latest findings and additional fixes.
 
 The checkout already used Supabase Auth, not custom JWT authentication. There is no /api/auth/login route in this source. Historical production logs mentioning that route can indicate an older deployment or client, but those logs alone cannot establish what is currently deployed. /api/auth/me remains valid: it checks Supabase Auth and reports Gmail connection status.
 

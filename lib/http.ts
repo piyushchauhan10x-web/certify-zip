@@ -27,3 +27,16 @@ export async function request<T>(url: string, init: RequestInit = {}, timeout = 
 export const timedFetch: typeof fetch = (input, init) => fetch(input, {
   ...init, signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
 });
+
+// Auth requests get a real transport deadline; an OAuth navigation gets none.
+export const authFetch: typeof fetch = async (input, init) => {
+  const timeout = AbortSignal.timeout(30000);
+  try {
+    return await fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout });
+  } catch (error) {
+    const message = timeout.aborted ? "Supabase authentication request timed out after 30 seconds. Please retry."
+      : error instanceof TypeError ? "Network error reaching Supabase" : "Supabase authentication request was interrupted.";
+    console.error("[SUPABASE_AUTH_FETCH]", message);
+    throw new Error(message);
+  }
+};
