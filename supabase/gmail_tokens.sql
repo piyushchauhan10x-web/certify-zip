@@ -21,3 +21,6 @@ on conflict (id) do update set public = false, file_size_limit = excluded.file_s
 -- No anonymous/client storage policies are required for signed upload URLs.
 -- Inspect existing storage.objects policies and remove unrelated broad public grants.
 -- Never delete storage.objects rows directly: remove orphaned files through Storage API.
+
+-- Refresh the API schema after creating the Gmail table.
+notify pgrst, 'reload schema';

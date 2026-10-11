@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { gmailConnected, getGmailConnection } from '@/lib/gmail';
+import { GmailError, gmailConnected, getGmailConnection } from '@/lib/gmail';
 import { authError } from '@/lib/authErrors';
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -15,7 +15,12 @@ export async function GET() {
   let connection = null;
   let connectionError: string | undefined;
   try { connection = await getGmailConnection(user.id); }
-  catch { console.error("[GMAIL_STATUS] Could not load Gmail connection."); connectionError = "Your session is valid, but Gmail status is unavailable. Check SUPABASE_SERVICE_KEY and the gmail_tokens table."; }
+  catch (error) {
+    console.error("[GMAIL_STATUS] Could not load Gmail connection.");
+    connectionError = error instanceof GmailError && error.code === "GMAIL_SCHEMA_MISSING"
+      ? error.message
+      : "Your session is valid, but Gmail status is unavailable. Check SUPABASE_SERVICE_KEY and the gmail_tokens table.";
+  }
   return NextResponse.json({
     loggedIn: true,
     connectionError,

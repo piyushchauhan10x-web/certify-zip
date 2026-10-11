@@ -15,7 +15,13 @@ export interface GmailUser {
 }
 export async function getGmailConnection(userId: string): Promise<GmailUser | null> {
   const { data, error } = await supabase.from("gmail_tokens").select("*").eq("user_id", userId).maybeSingle();
-  if (error) throw new GmailError("TOKEN_LOOKUP_FAILED", 500, "Could not load Gmail connection.");
+  if (error) {
+    if (error.code === "PGRST205") {
+      console.error("[GMAIL_STATUS] public.gmail_tokens is missing from the schema cache.");
+      throw new GmailError("GMAIL_SCHEMA_MISSING", 503, "Gmail setup is incomplete: public.gmail_tokens is unavailable. Run supabase/gmail_tokens.sql in the Supabase SQL Editor for this project's database.");
+    }
+    throw new GmailError("TOKEN_LOOKUP_FAILED", 500, "Could not load Gmail connection.");
+  }
   return data;
 }
 export function gmailConnected(user: GmailUser) {

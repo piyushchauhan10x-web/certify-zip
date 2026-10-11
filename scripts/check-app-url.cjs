@@ -29,6 +29,7 @@ try {
   assert.throws(() => getAppUrl({ headers: new Headers({ 'x-forwarded-host': 'localhost:3000', 'x-forwarded-proto': 'http' }) }), /production HTTPS URL/);
   process.env.NODE_ENV = 'development';
   assert.equal(getAppUrl(), 'http://localhost:3000');
+  assert.equal(getGoogleRedirectUri(), 'http://localhost:3000/api/auth/gmail/callback');
   assert.throws(requireGoogleCredentials, /Missing env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET/);
   process.env.GOOGLE_CLIENT_ID = 'test-id';
   assert.throws(requireGoogleCredentials, /Missing env: GOOGLE_CLIENT_SECRET$/);

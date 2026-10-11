@@ -44,16 +44,22 @@ const flow = load('lib/oauthFlow.ts', {
     headers: { cookie: `gmail_oauth_state=x${cookie}` },
   });
   assert.equal(flow.readOAuthContext(forged), null);
+  let lookupError = null;
   const { getGmailConnection } = load('lib/gmail.ts', {
     './oauth': { GMAIL_SEND_SCOPE: scope },
     './db': { supabase: { from: table => {
       assert.equal(table, 'gmail_tokens');
       return { select: () => ({ eq: (key, id) => {
         assert.equal(key, 'user_id'); assert.equal(id, 'user-a');
-        return { maybeSingle: async () => ({ data: null, error: null }) };
+        return { maybeSingle: async () => ({ data: null, error: lookupError }) };
       } }) };
     } } },
   });
   assert.equal(await getGmailConnection('user-a'), null);
+  lookupError = { code: 'PGRST205' };
+  await assert.rejects(getGmailConnection('user-a'), error =>
+    error.code === 'GMAIL_SCHEMA_MISSING' && error.status === 503 && error.message.includes('supabase/gmail_tokens.sql'));
+  lookupError = { code: '42501' };
+  await assert.rejects(getGmailConnection('user-a'), error => error.code === 'TOKEN_LOOKUP_FAILED');
   console.log('PASS: verified Auth user, signed Gmail state, tamper rejection, offline consent, per-user token lookup');
 })().catch(() => { console.error('FAIL: Supabase Auth regression checks'); process.exitCode = 1; });

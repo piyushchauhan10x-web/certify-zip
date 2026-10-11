@@ -14,6 +14,14 @@
 
 ## Google Cloud
 
+### Local Gmail connection
+
+For local development on port 3000, open the **Web application** OAuth client identified by `GOOGLE_CLIENT_ID`. Add `http://localhost:3000/api/auth/gmail/callback` under **Authorized redirect URIs**, keeping the production callback and existing Supabase login callback. Use the exact scheme, port and path, without a trailing slash. Adding only an authorized JavaScript origin does not authorize this callback.
+
+If Google displays `redirect_uri_mismatch`, compare its `redirect_uri` with this client's registered redirect URIs. The Gmail callback is separate from Supabase's `/auth/v1/callback`. Do not change the local app to use a production callback: the OAuth state and session cookies belong to the local browser origin. Save the Cloud settings, allow them to propagate, then start a fresh Connect Gmail attempt from the app.
+
+### Production settings
+
 1. Use OAuth credentials of type Web application. In the client used by Supabase Google login, authorize the exact callback shown by Supabase: https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback (use the displayed URL if Auth has a custom domain).
 2. In the Gmail client identified by GOOGLE_CLIENT_ID, authorize exactly https://certify-zip.vercel.app/api/auth/gmail/callback. No trailing slash. The server derives this from APP_URL and logs only the final non-secret redirect URI. GOOGLE_REDIRECT_URI is obsolete and ignored.
 3. Add https://certify-zip.vercel.app as an authorized JavaScript origin where applicable. Enable Gmail API and Google Sheets API.
