@@ -31,6 +31,9 @@ const flow = load('lib/oauthFlow.ts', {
   const start = flow.startOAuth(new NextRequest('https://certify.test/api/auth/gmail/connect'), 'user-a');
   const url = new URL(start.headers.get('location'));
   assert.ok(url.searchParams.get('scope').split(' ').includes(scope));
+  assert.deepEqual(url.searchParams.get('scope').split(' '), ['openid', 'email', scope]);
+  const sheetsStart = flow.startOAuth(new NextRequest('https://certify.test/api/auth/gmail/connect?purpose=sheets'), 'user-a');
+  assert.ok(new URL(sheetsStart.headers.get('location')).searchParams.get('scope').includes('spreadsheets.readonly'));
   for (const [key, value] of Object.entries({ access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' })) {
     assert.equal(url.searchParams.get(key), value);
   }
@@ -44,6 +47,24 @@ const flow = load('lib/oauthFlow.ts', {
     headers: { cookie: `gmail_oauth_state=x${cookie}` },
   });
   assert.equal(flow.readOAuthContext(forged), null);
+  let callbackContext = { userId: 'user-a', redirectUri: 'https://certify.test/api/auth/gmail/callback' };
+  const gmailCallback = load('app/api/auth/gmail/callback/route.ts', {
+    'googleapis': { google: { auth: { OAuth2: class { constructor() { throw Error('Must not exchange a denied or mismatched callback'); } } } } },
+    '@/lib/auth': { getCurrentUser: async () => ({ id: 'user-a' }) },
+    '@/lib/db': { supabase: {} },
+    '@/lib/appUrl': { getGoogleLoginConfig: () => ({ baseUrl: 'https://certify.test', redirectUri: callbackContext.redirectUri }), authCookieOptions: () => ({ path: '/' }) },
+    '@/lib/authErrors': { authError: () => { throw Error('Unexpected callback failure'); } },
+    '@/lib/oauthFlow': { readOAuthContext: () => callbackContext },
+    '@/lib/gmail': { getGmailConnection: () => { throw Error('Unexpected token read'); } },
+    '@/lib/oauth': { GMAIL_SEND_SCOPE: scope },
+  });
+  const denied = await gmailCallback.GET(new NextRequest('https://certify.test/api/auth/gmail/callback?error=access_denied'));
+  assert.equal(denied.headers.get('location'), 'https://certify.test/?gmail=denied');
+  assert.deepEqual(denied.cookies.getAll().map(c => c.name), ['gmail_oauth_state']); // Login cookies untouched.
+  callbackContext = { ...callbackContext, userId: 'user-b' };
+  const mismatch = await gmailCallback.GET(new NextRequest('https://certify.test/api/auth/gmail/callback?code=test'));
+  assert.equal(mismatch.headers.get('location'), 'https://certify.test/?gmail=reconnect');
+  console.log('PASS: minimum Gmail scopes, contextual Sheets permission, denied consent preserves login, cross-user callback rejected');
   let lookupError = null;
   const { getGmailConnection } = load('lib/gmail.ts', {
     './oauth': { GMAIL_SEND_SCOPE: scope },

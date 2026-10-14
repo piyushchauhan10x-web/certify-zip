@@ -1,17 +1,20 @@
 "use client";
 import { useState } from "react";
-import { request } from "@/lib/http";
+import { request, HttpError } from "@/lib/http";
+import ConnectGmail from "./ConnectGmail";
 import { Recipient } from "@/types";
 
 export default function GoogleSheetImport({ onImported }: { onImported: (r: Recipient[]) => void }) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [needsPermission, setNeedsPermission] = useState(false);
 
   async function handleImport() {
     if (!url.trim()) return;
     setLoading(true);
     setError("");
+    setNeedsPermission(false);
     try {
       const data = await request<{ recipients: Recipient[] }>("/api/sheets", {
         method: "POST",
@@ -23,6 +26,7 @@ export default function GoogleSheetImport({ onImported }: { onImported: (r: Reci
     } catch (err: any) {
       console.error("[SHEETS_IMPORT] Could not import sheet.");
       setError("Failed to import: " + err.message);
+      setNeedsPermission(err instanceof HttpError && err.code === "SHEETS_PERMISSION_REQUIRED");
     } finally {
       setLoading(false);
     }
@@ -48,6 +52,7 @@ export default function GoogleSheetImport({ onImported }: { onImported: (r: Reci
       </div>
       <p className="text-xs text-gray-500">Sheet must be shared with your connected Google account, or set to &quot;Anyone with the link&quot;</p>
       {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+      {needsPermission && <ConnectGmail purpose="sheets" className="text-sm font-medium text-[#F9654B] underline">Allow Google Sheets access</ConnectGmail>}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient, getAuthConfig } from "@/lib/supabase/client";
 import { withAuthTimeout, authFailure, redirectToGoogle } from "@/lib/authUi";
 import { useRouter } from "next/navigation";
+import { markGoogleLogin, clearGoogleLogin } from "@/lib/gmailPrompt";
 
 export default function AuthForm({ mode: initialMode }: { mode: "login" | "register" }) {
   const [mode, setMode] = useState<"login" | "register">(initialMode);
@@ -45,6 +46,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
       session_check: "Could not check your session. Please try signing in again.",
     };
     if (code) {
+      try { clearGoogleLogin(window.sessionStorage); } catch { /* Storage may be unavailable. */ }
       const detail = new URLSearchParams(window.location.search).get("message");
       setError(authFailure("AUTH_CALLBACK", new Error(detail || messages[code] || "Sign-in callback failed. Please retry.")));
     }
@@ -58,9 +60,15 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
       const config = await getAuthConfig();
       if (config.googleProviderEnabled === false) throw new Error("Supabase Google provider is not enabled");
       const client = await createClient(rememberMe);
-      await redirectToGoogle(client, config.baseUrl + "/auth/callback", url => window.location.assign(url));
+      await redirectToGoogle(client, config.baseUrl + "/auth/callback", url => {
+        try { markGoogleLogin(window.sessionStorage); } catch { console.error("[GMAIL_PROMPT] Browser storage unavailable; connect later from the account menu."); }
+        window.location.assign(url);
+      });
       redirectStarted = true;
-    } catch (error) { setError(authFailure("GOOGLE_SIGN_IN", error)); }
+    } catch (error) {
+      try { clearGoogleLogin(window.sessionStorage); } catch { /* Storage may be unavailable. */ }
+      setError(authFailure("GOOGLE_SIGN_IN", error));
+    }
     finally { if (!redirectStarted) setLoading(false); }
   }
 
@@ -72,6 +80,7 @@ export default function AuthForm({ mode: initialMode }: { mode: "login" | "regis
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    try { clearGoogleLogin(window.sessionStorage); } catch { /* Email login does not use the prompt. */ }
     if (loading || !configReady) return;
     setLoading(true);
     setError("");

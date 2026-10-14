@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import GmailPrompt from "@/components/GmailPrompt";
+import { consumeGoogleLogin } from "@/lib/gmailPrompt";
 import ConnectGmail from "@/components/ConnectGmail";
 import { request, HttpError } from "@/lib/http";
 import { authException, withAuthTimeout } from "@/lib/authUi";
@@ -36,6 +38,10 @@ export default function Home() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [importMode, setImportMode] = useState<"file" | "sheet">("file");
   const [gmailDenied, setGmailDenied] = useState(false);
+  const [showGmailPrompt, setShowGmailPrompt] = useState(false);
+  const [gmailNotice, setGmailNotice] = useState("");
+  const loginIntent = useRef<boolean>();
+  const connectionReturn = useRef(false);
 
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [templates, setTemplates] = useState<TemplateConfig[]>([]);
@@ -45,23 +51,40 @@ export default function Home() {
   const [activeWorkflowStep, setActiveWorkflowStep] = useState<number>(0);
 
   useEffect(() => {
+    let cancelled = false;
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
+      if (loginIntent.current === undefined) {
+        try { loginIntent.current = consumeGoogleLogin(window.sessionStorage, params.get("signed_in") === "1"); }
+        catch { loginIntent.current = false; }
+      }
+      if (params.get("connected") === "1") connectionReturn.current = true;
       if (["denied", "reconnect"].includes(params.get("gmail") || "")) {
         setGmailDenied(true);
+      }
+      if (params.has("signed_in") || params.has("connected") || params.has("gmail")) {
+        const url = new URL(window.location.href);
+        ["signed_in", "connected", "gmail"].forEach(key => url.searchParams.delete(key));
+        window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
       }
     }
 
     request<{ loggedIn: boolean; googleConnected: boolean; googleEmail?: string; email?: string; connectionError?: string }>("/api/auth/me")
       .then(data => {
+        if (cancelled) return;
         setGoogleConnected(data.googleConnected); setGoogleEmail(data.googleEmail || "");
         setUserEmail(data.email || ""); setAuthChecked(true);
+        if (loginIntent.current && !data.googleConnected && !data.connectionError) setShowGmailPrompt(true);
+        loginIntent.current = false;
+        if (connectionReturn.current && data.googleConnected) setGmailNotice("Gmail connected. You can send certificates when you are ready.");
         if (data.connectionError) setPageError(data.connectionError);
       }).catch(error => {
+        if (cancelled) return;
         console.error("[SESSION_CHECK] Could not load session.");
         if (error instanceof HttpError && error.status === 401) router.replace("/login");
         else setPageError(authException(error));
       });
+    return () => { cancelled = true; };
   }, [router]);
 
   async function handleLogout() {
@@ -107,6 +130,8 @@ export default function Home() {
       />
 
       <div className="relative z-10">
+      {showGmailPrompt && <GmailPrompt onDismiss={() => setShowGmailPrompt(false)} />}
+      {gmailNotice && <p role="status" className="p-4 text-sm text-emerald-700 bg-emerald-50">{gmailNotice}</p>}
       {pageError && <p role="alert" className="p-4 text-sm text-red-700 bg-red-50 break-words">{pageError}</p>}
         {/* 1. TOP HEADER */}
       <header className="min-h-[44px] border-b border-gray-200 bg-white sticky top-0 z-30 flex items-center">
@@ -450,9 +475,6 @@ export default function Home() {
             <div className="border-b border-gray-200 pb-4 mb-4 sm:mb-6">
               <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Direct Delivery Engine</h2>
               <p className="text-xs text-gray-500">Batch email generated certificate PDFs directly to recipient mailboxes.</p>
-              {!googleConnected && (
-                <ConnectGmail  className="text-xs text-[#F9654B] mt-2 font-medium underline block">Connect Gmail</ConnectGmail>
-              )}
             </div>
             <SendPanel certs={certs} recipients={recipients} />
           </section>

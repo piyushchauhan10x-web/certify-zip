@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       const { error } = await createClient().auth.exchangeCodeForSession(code);
       if (!error) {
         const next = req.nextUrl.searchParams.get("next");
-        const target = next === "/reset-password" || next === "reset-password" ? "/reset-password" : "/";
+        const target = next === "/reset-password" || next === "reset-password" ? "/reset-password" : "/?signed_in=1";
         return NextResponse.redirect(new URL(target, base), { headers: { "Cache-Control": "private, no-store" } });
       }
       const message = authMessage(error);

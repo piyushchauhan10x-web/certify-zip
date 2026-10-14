@@ -10,6 +10,23 @@ function load(path, mocks = {}) {
   return m.exports;
 }
 (async () => {
+  const intent = load('lib/gmailPrompt.ts');
+  const values = new Map();
+  const storage = { setItem: (k, v) => values.set(k, v), getItem: k => values.get(k) ?? null, removeItem: k => values.delete(k) };
+  assert.equal(intent.consumeGoogleLogin(storage, true, 1000), false);
+  intent.markGoogleLogin(storage, 1000);
+  assert.equal(intent.consumeGoogleLogin(storage, true, 1500), true);
+  assert.equal(intent.consumeGoogleLogin(storage, true, 1600), false); // Refresh cannot replay.
+  intent.markGoogleLogin(storage, 1000);
+  assert.equal(intent.consumeGoogleLogin(storage, false, 1500), false); // No successful callback.
+  intent.markGoogleLogin(storage, 1000);
+  intent.clearGoogleLogin(storage); // Email login or rejected OAuth.
+  assert.equal(intent.consumeGoogleLogin(storage, true, 1500), false);
+  intent.markGoogleLogin(storage, 1000);
+  assert.equal(intent.consumeGoogleLogin(storage, true, 601000), false);
+  intent.markGoogleLogin(storage, 2000);
+  assert.equal(intent.consumeGoogleLogin(storage, true, 1000), false);
+  console.log('PASS: interactive login intent, one-time consumption, refresh suppression, email/cancel clearing, expiry');
   const auth = load('lib/authUi.ts');
   assert.equal(auth.authMessage({ message: 'Unsupported provider: provider is not enabled' }), 'Supabase Google provider is not enabled');
   assert.equal(auth.authMessage({ message: 'Supabase explanation', code: 'other' }), 'Supabase explanation');
@@ -75,6 +92,6 @@ function load(path, mocks = {}) {
   const recovery = await callback.GET(new NextRequest('https://certify.example/auth/callback?code=test-code&next=/reset-password'));
   assert.equal(new URL(recovery.headers.get('location')).pathname, '/reset-password');
   const hostileNext = await callback.GET(new NextRequest('https://certify.example/auth/callback?code=test-code&next=https://evil.example'));
-  assert.equal(hostileNext.headers.get('location'), 'https://certify.example/');
+  assert.equal(hostileNext.headers.get('location'), 'https://certify.example/?signed_in=1');
   console.log('PASS: explicit OAuth navigation, no Gmail scopes, provider/missing-URL rejection, real errors, redaction, settings health/provider flags, rejected key, network failure, 5s deadline, missing runtime config, disabled Google preserves email config');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -21,10 +21,10 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Please log in." }, { status: 401 });
     const connection = await getGmailConnection(user.id);
     if (!connection || !connection.google_refresh_token) {
-      return NextResponse.json({ error: "Connect Gmail first to access Google Sheets" }, { status: 401 });
+      return NextResponse.json({ code: "SHEETS_PERMISSION_REQUIRED", error: "Connect your Google account and allow Sheets access to import." }, { status: 403 });
     }
 
-    if (!connection.google_granted_scopes?.includes("https://www.googleapis.com/auth/spreadsheets.readonly")) return NextResponse.json({ error: "Reconnect Gmail and tick the Google Sheets permission box to import a sheet." }, { status: 403 });
+    if (!connection.google_granted_scopes?.includes("https://www.googleapis.com/auth/spreadsheets.readonly")) return NextResponse.json({ code: "SHEETS_PERMISSION_REQUIRED", error: "Allow Google Sheets access to import a sheet." }, { status: 403 });
     const body = await req.json();
     const parsed = sheetImportSchema.safeParse(body);
     if (!parsed.success) {
