@@ -48,18 +48,18 @@ export default function FailedRowsFix({ recipients, onUpdate }: Props) {
               value={edit.name}
               onChange={(e) => updateField(r.id, "name", e.target.value)}
               placeholder="Name"
-              className="flex-1 bg-[#18181B] border border-[#27272A] text-white placeholder-gray-400 rounded-lg px-3 py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 focus:outline-none focus:border-[#F9654B]"
+              className="flex-1 bg-[#18181B] border border-[#27272A] text-white placeholder-gray-400 rounded-lg px-3 py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 focus:outline-none focus:border-[#17634D]"
             />
             <input
               value={edit.email}
               onChange={(e) => updateField(r.id, "email", e.target.value)}
               placeholder="Email"
-              className="flex-1 bg-[#18181B] border border-[#27272A] text-white placeholder-gray-400 rounded-lg px-3 py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 focus:outline-none focus:border-[#F9654B]"
+              className="flex-1 bg-[#18181B] border border-[#27272A] text-white placeholder-gray-400 rounded-lg px-3 py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 focus:outline-none focus:border-[#17634D]"
             />
             <span className="text-xs text-rose-400 shrink-0">{r.error}</span>
             <button
               onClick={() => applyFix(r.id)}
-              className="text-xs bg-[#F9654B] hover:bg-[#E04F34] text-white font-medium px-4 py-2 min-h-[44px] sm:min-h-0 rounded-lg transition-colors cursor-pointer flex items-center justify-center shrink-0"
+              className="text-xs bg-[#17634D] hover:bg-[#104D3B] text-white font-medium px-4 py-2 min-h-[44px] sm:min-h-0 rounded-lg transition-colors cursor-pointer flex items-center justify-center shrink-0"
             >
               Fix
             </button>

@@ -117,42 +117,31 @@ export default function Home() {
   const avatarInitials = "PC";
 
   return (
-    <main className="min-h-screen bg-[#F8FAFC] text-gray-900 font-sans selection:bg-[#F9654B]/20 selection:text-[#F9654B] relative overflow-x-hidden w-full max-w-full min-w-0">
-      {/* Decorative Subtle Certificate Line-Art Background */}
-      <div 
-        className="fixed inset-0 pointer-events-none z-0 opacity-60"
-        style={{
-          backgroundImage: `url('/cert_bg_pattern.svg')`,
-          backgroundRepeat: 'repeat',
-          backgroundSize: '360px 360px',
-          backgroundPosition: 'center top',
-        }}
-      />
-
+    <main className="studio-app min-h-screen bg-[#F5F3ED] text-gray-900 font-sans selection:bg-[#17634D]/20 selection:text-[#17634D] relative overflow-x-hidden w-full max-w-full min-w-0">
       <div className="relative z-10">
       {showGmailPrompt && <GmailPrompt onDismiss={() => setShowGmailPrompt(false)} />}
       {gmailNotice && <p role="status" className="p-4 text-sm text-emerald-700 bg-emerald-50">{gmailNotice}</p>}
       {pageError && <p role="alert" className="p-4 text-sm text-red-700 bg-red-50 break-words">{pageError}</p>}
         {/* 1. TOP HEADER */}
-      <header className="min-h-[44px] border-b border-gray-200 bg-white sticky top-0 z-30 flex items-center">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 w-full flex items-center justify-between">
+      <header className="studio-header sticky top-0 z-30 flex items-center">
+        <div className="max-w-[1440px] mx-auto px-5 sm:px-10 w-full flex items-center justify-between">
           {/* LEFT: Logo & Brand */}
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-[#F9654B] flex items-center justify-center text-white shrink-0 shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-[#17634D] flex items-center justify-center text-white shrink-0 shadow-xs">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <span className="font-bold text-gray-900 text-sm tracking-tight">Certify</span>
+            <span className="studio-wordmark font-display font-bold text-xl tracking-tight">Certify</span>
           </div>
 
           {/* RIGHT: Status & User Avatar */}
           <div className="flex items-center gap-3 relative">
-            <span className="text-xs text-gray-400 font-normal">Draft certificate</span>
+            <span className="studio-status text-xs font-medium">Certificate studio</span>
 
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold flex items-center justify-center border border-gray-200 hover:border-gray-300 transition-colors"
+              className="w-10 h-10 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold flex items-center justify-center border border-gray-200 hover:border-gray-300 transition-colors"
               title={userEmail || "User settings"}
             >
               {avatarInitials}
@@ -160,7 +149,7 @@ export default function Home() {
 
             {/* Account dropdown popover preserving auth controls */}
             {showUserMenu && (
-              <div className="absolute right-0 top-8 w-60 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-50 text-xs text-gray-700">
+              <div className="absolute right-0 top-12 w-64 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-50 text-xs text-gray-700">
                 {userEmail && <p className="font-medium text-gray-900 truncate mb-1">{userEmail}</p>}
                 <div className="py-1.5 border-t border-b border-gray-100 my-1.5 space-y-1">
                   {googleConnected ? (
@@ -171,7 +160,7 @@ export default function Home() {
                   ) : (
                     <ConnectGmail
 
-                      className="text-[#F9654B] hover:underline font-medium block"
+                      className="text-[#17634D] hover:underline font-medium block"
                     >
                       + Connect Gmail account
                     </ConnectGmail>
@@ -207,7 +196,7 @@ export default function Home() {
             </div>
             <ConnectGmail
 
-              className="bg-[#F9654B] hover:bg-[#E04F34] text-white text-xs font-semibold px-4 py-2.5 min-h-[44px] sm:min-h-0 rounded-xl transition-colors shrink-0 flex items-center justify-center shadow-xs"
+              className="bg-[#17634D] hover:bg-[#104D3B] text-white text-xs font-semibold px-4 py-2.5 min-h-[44px] sm:min-h-0 rounded-xl transition-colors shrink-0 flex items-center justify-center shadow-xs"
             >
               Reconnect
             </ConnectGmail>
@@ -216,12 +205,12 @@ export default function Home() {
       )}
 
       {/* 2. WORKFLOW STEPPER */}
-      <div className="bg-white border-b border-gray-100 sticky top-11 z-20">
+      <div className="studio-stepper border-b border-gray-200">
         {/* Mobile Step Header (Compact + Thin Progress Bar + Horizontal Pill Scroll) */}
         <div className="block sm:hidden border-b border-gray-100">
           <div className="px-4 py-2.5 flex items-center justify-between">
             <span className="text-xs font-bold text-gray-900">
-              Step {currentStepIndex + 1} of 5 — <span className="text-[#F9654B]">{STEPS[currentStepIndex].label}</span>
+              Step {currentStepIndex + 1} of 5 — <span className="text-[#17634D]">{STEPS[currentStepIndex].label}</span>
             </span>
             <span className="text-[11px] text-gray-400 font-medium">
               {Math.round(((currentStepIndex + 1) / 5) * 100)}%
@@ -230,7 +219,7 @@ export default function Home() {
           {/* Thin Progress Bar */}
           <div className="w-full h-1 bg-gray-100 overflow-hidden">
             <div
-              className="h-full bg-[#F9654B] transition-all duration-300"
+              className="h-full bg-[#17634D] transition-all duration-300"
               style={{ width: `${((currentStepIndex + 1) / 5) * 100}%` }}
             />
           </div>
@@ -248,7 +237,8 @@ export default function Home() {
                     onClick={() => {
                       if (recipients.length > 0) setActiveWorkflowStep(idx);
                     }}
-                    className="flex items-center gap-1.5 text-left focus:outline-none"
+                    aria-current={isCurrent ? "step" : undefined}
+                    className="studio-step flex items-center gap-2 text-left"
                   >
                     <div
                       className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-medium transition-colors ${
@@ -283,29 +273,16 @@ export default function Home() {
       {/* 3. MAIN CONTENT */}
       {/* STEP 1 INITIAL DATA IMPORT VIEW */}
       {activeWorkflowStep === 0 && (
-        <div className="w-full max-w-[505px] mx-auto px-3 sm:px-4 pt-6 sm:pt-9 pb-36 sm:pb-16 min-w-0 max-w-full">
-          {/* Step Pill */}
-          <div className="text-center mb-3">
-            <span className="px-3 py-1 bg-[#FFF0ED] text-[#F9654B] text-[11px] font-semibold rounded-full inline-block">
-              Step 1 of 5
-            </span>
-          </div>
-
-          {/* Main Heading & Subtitle */}
-          <h1 className="text-xl sm:text-[28px] font-bold text-gray-900 text-center tracking-tight mb-2 px-2">
-            Add your recipient list
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 text-center max-w-[420px] mx-auto leading-relaxed mb-6 px-2">
-            Upload a spreadsheet with the names and details you want to use on your certificates.
-          </p>
-
+        <div className="studio-intro">
+          <section className="studio-import" aria-labelledby="import-heading">
+            <div className="studio-import-heading"><h2 id="import-heading">Add recipients</h2><p>Add a spreadsheet or import a Google Sheet.</p></div>
           {/* 4. IMPORT METHOD TABS */}
-          <div className="flex items-center justify-center gap-6 sm:gap-8 border-b border-gray-200 mb-6">
+          <div className="studio-tabs flex items-center gap-6 border-b border-gray-200 mb-6">
             <button
               onClick={() => setImportMode("file")}
               className={`pb-2.5 text-xs sm:text-sm font-medium flex items-center gap-2 transition-colors min-h-[44px] ${
                 importMode === "file"
-                  ? "text-gray-900 border-b-2 border-[#F9654B]"
+                  ? "text-gray-900 border-b-2 border-[#17634D]"
                   : "text-gray-400 hover:text-gray-600"
               }`}
             >
@@ -319,7 +296,7 @@ export default function Home() {
               onClick={() => setImportMode("sheet")}
               className={`pb-2.5 text-xs sm:text-sm font-medium flex items-center gap-2 transition-colors min-h-[44px] ${
                 importMode === "sheet"
-                  ? "text-gray-900 border-b-2 border-[#F9654B]"
+                  ? "text-gray-900 border-b-2 border-[#17634D]"
                   : "text-gray-400 hover:text-gray-600"
               }`}
             >
@@ -338,7 +315,7 @@ export default function Home() {
           )}
 
           {/* 6. INFORMATION / VALIDATION NOTE */}
-          <div className="mt-4 w-full bg-[#F3F4F6] rounded-xl p-3.5 flex items-start gap-2.5 text-left">
+          <div className="mt-4 w-full bg-[#EFEEE7] rounded-xl p-3.5 flex items-start gap-2.5 text-left">
             <svg className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
@@ -365,31 +342,32 @@ export default function Home() {
           )}
 
           {/* 7. BOTTOM STICKY ACTION AREA (Safe Area Padding for Mobile) */}
-          <div className="border-t border-gray-200 my-6 hidden sm:block" />
+
 
           <div
-            className="fixed sm:relative bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md sm:bg-transparent border-t sm:border-0 border-gray-200 p-3 sm:p-0 flex justify-end shadow-lg sm:shadow-none"
+            className="studio-import-action flex justify-end"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
           >
             <button
               onClick={() => setActiveWorkflowStep(1)}
               disabled={recipients.length === 0}
-              className="w-full sm:w-auto bg-[#F9654B] hover:bg-[#E04F34] text-white text-sm font-medium px-6 py-3 min-h-[44px] rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full sm:w-auto bg-[#17634D] hover:bg-[#104D3B] text-white text-sm font-medium px-6 py-3 min-h-[44px] rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               Continue to design →
             </button>
           </div>
+          </section>
         </div>
       )}
 
       {/* STEP 2+ WIDE WORKSPACE VERTICAL STACK */}
       {activeWorkflowStep >= 1 && (
-        <div className="w-full max-w-[1450px] mx-auto px-3 sm:px-8 py-4 sm:py-8 space-y-4 sm:space-y-8 pb-36 sm:pb-8 min-w-0 max-w-full">
+        <div className="studio-workspace w-full max-w-[1280px] mx-auto px-3 sm:px-8 py-4 sm:py-8 space-y-4 sm:space-y-8 pb-36 sm:pb-8 min-w-0 max-w-full">
           {/* Workspace Subheader */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-200 pb-4 gap-3">
             <div>
               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <span className="px-3 py-0.5 bg-[#FFF0ED] text-[#F9654B] text-xs font-semibold rounded-full">
+                <span className="px-3 py-0.5 bg-[#E7F0E9] text-[#17634D] text-xs font-semibold rounded-full">
                   Step 2 of 5
                 </span>
                 <span className="text-xs text-gray-500 font-medium">
@@ -397,7 +375,7 @@ export default function Home() {
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-                Design & Tag Placement
+                Design your certificate
               </h1>
             </div>
             <button
@@ -411,7 +389,7 @@ export default function Home() {
           {/* Section 1: Template Manager Workspace */}
           <section className="w-full bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs text-gray-900 min-w-0 max-w-full">
             <div className="mb-4 sm:mb-6 border-b border-gray-200 pb-4">
-              <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Canvas & Tag Placement Workspace</h2>
+              <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Make it yours</h2>
               <p className="text-xs text-gray-500">
                 {categories.length > 1
                   ? `${categories.length} cohorts detected. Assign a template layout for each group.`
@@ -424,9 +402,9 @@ export default function Home() {
           {/* Section 2: Local Generation (Full Width Stacked Below Canvas) */}
           <section className="w-full bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs text-gray-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4 min-w-0 max-w-full">
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Local Generation Engine</h2>
+              <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Bring your certificates to life</h2>
               <p className="text-xs text-gray-500">
-                Renders high-DPI PDFs completely on client browser threads without sending template artwork to remote servers.
+                Create personalized PDFs in your browser, ready for review.
               </p>
             </div>
 
@@ -434,9 +412,9 @@ export default function Home() {
               <button
                 onClick={handleGenerate}
                 disabled={templates.length === 0 || recipients.length === 0 || generating}
-                className="w-full sm:w-auto bg-[#F9654B] hover:bg-[#E04F34] text-white disabled:opacity-40 disabled:cursor-not-allowed text-xs sm:text-sm font-semibold px-6 py-3 min-h-[44px] rounded-xl transition-all shadow-xs cursor-pointer"
+                className="w-full sm:w-auto bg-[#17634D] hover:bg-[#104D3B] text-white disabled:opacity-40 disabled:cursor-not-allowed text-xs sm:text-sm font-semibold px-6 py-3 min-h-[44px] rounded-xl transition-all shadow-xs cursor-pointer"
               >
-                {generating ? "Building Assets..." : `Generate ${validCount} Output Assets`}
+                {generating ? "Creating certificates..." : `Generate ${validCount} certificates`}
               </button>
             </div>
           </section>
@@ -447,7 +425,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* Section 3: Inspection Grid (Full Width Stacked Below Local Generation) */}
+          {/* Section 3: A final look (Full Width Stacked Below Local Generation) */}
           <section className="w-full bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs text-gray-900 min-w-0 max-w-full">
             <div className="flex items-center justify-between mb-4 sm:mb-6 border-b border-gray-200 pb-4">
               <div>
@@ -473,7 +451,7 @@ export default function Home() {
           {/* Section 4: Direct Delivery (Full Width Stacked Below Inspection Grid) */}
           <section className="w-full bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs text-gray-900 min-w-0 max-w-full">
             <div className="border-b border-gray-200 pb-4 mb-4 sm:mb-6">
-              <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Direct Delivery Engine</h2>
+              <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-1">Ready to deliver</h2>
               <p className="text-xs text-gray-500">Batch email generated certificate PDFs directly to recipient mailboxes.</p>
             </div>
             <SendPanel certs={certs} recipients={recipients} />
@@ -482,7 +460,7 @@ export default function Home() {
       )}
 
       </div>
-      <footer className="flex justify-center gap-6 py-8 pb-24 sm:pb-8 text-sm"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></footer>
+      <footer className="studio-footer flex justify-center gap-6 py-8 text-sm"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></footer>
     </main>
   );
 }

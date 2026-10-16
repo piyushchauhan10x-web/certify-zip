@@ -40,19 +40,19 @@ export default function GoogleSheetImport({ onImported }: { onImported: (r: Reci
           placeholder="Paste Google Sheets link"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          className="flex-1 bg-white border border-gray-300 text-gray-900 rounded-xl px-3.5 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B] focus:ring-1 focus:ring-[#F9654B] placeholder:text-gray-400 w-full"
+          className="flex-1 bg-white border border-gray-300 text-gray-900 rounded-xl px-3.5 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#17634D] focus:ring-1 focus:ring-[#17634D] placeholder:text-gray-400 w-full"
         />
         <button
           onClick={handleImport}
           disabled={loading || !url.trim()}
-          className="bg-[#F9654B] hover:bg-[#E04F34] text-white text-sm font-medium px-5 py-2.5 min-h-[44px] rounded-xl disabled:opacity-40 transition-colors shadow-xs w-full sm:w-auto cursor-pointer flex items-center justify-center shrink-0"
+          className="bg-[#17634D] hover:bg-[#104D3B] text-white text-sm font-medium px-5 py-2.5 min-h-[44px] rounded-xl disabled:opacity-40 transition-colors shadow-xs w-full sm:w-auto cursor-pointer flex items-center justify-center shrink-0"
         >
           {loading ? "Importing..." : "Import"}
         </button>
       </div>
       <p className="text-xs text-gray-500">Sheet must be shared with your connected Google account, or set to &quot;Anyone with the link&quot;</p>
       {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
-      {needsPermission && <ConnectGmail purpose="sheets" className="text-sm font-medium text-[#F9654B] underline">Allow Google Sheets access</ConnectGmail>}
+      {needsPermission && <ConnectGmail purpose="sheets" className="text-sm font-medium text-[#17634D] underline">Allow Google Sheets access</ConnectGmail>}
     </div>
   );
 }

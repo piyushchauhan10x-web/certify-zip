@@ -8,12 +8,15 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter', weight: ['40
 export const metadata = {
   title: 'Certify — Zero-Upload Certificate Engine',
   description: 'Privacy-first bulk certificate generator, browser-side.',
+  manifest: '/manifest.webmanifest',
+  applicationName: 'Certify',
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  themeColor: '#163b2c',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

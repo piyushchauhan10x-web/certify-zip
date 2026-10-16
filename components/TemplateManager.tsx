@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TemplateConfig, TextField } from "@/types";
 import { nanoid } from "nanoid";
 
@@ -19,62 +19,91 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const [history, setHistory] = useState<Record<string, (TemplateConfig | undefined)[]>>({});
+  const [imageError, setImageError] = useState<string | null>(null);
   const current = templates[activeCat];
+
+  function commit(config: TemplateConfig) {
+    setHistory(prev => ({ ...prev, [config.category]: [...(prev[config.category] || []), templates[config.category]].slice(-50) }));
+    setTemplates(prev => ({ ...prev, [config.category]: config }));
+  }
+
+  function undo() {
+    const entries = history[activeCat] || [];
+    if (!entries.length) return;
+    const previous = entries[entries.length - 1];
+    setTemplates(prev => {
+      const next = { ...prev };
+      if (previous) next[activeCat] = previous;
+      else delete next[activeCat];
+      return next;
+    });
+    setHistory(prev => ({ ...prev, [activeCat]: entries.slice(0, -1) }));
+    setEditingFieldId(null);
+  }
+
+  useEffect(() => {
+    if (!current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      canvas.width = current.width;
+      canvas.height = current.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { setImageError("Certificate preview is unavailable in this browser."); return; }
+      ctx.drawImage(img, 0, 0, current.width, current.height);
+      current.fields.forEach(f => {
+        ctx.font = f.fontSize + "px " + f.fontFamily;
+        ctx.fillStyle = f.color;
+        ctx.textAlign = f.align;
+        const text = "{" + f.label + "}";
+        ctx.fillText(text, f.x, f.y);
+        if (f.id === editingFieldId) {
+          const w = ctx.measureText(text).width;
+          const x = f.align === "center" ? f.x - w / 2 : f.align === "right" ? f.x - w : f.x;
+          ctx.strokeStyle = "#17634D";
+          ctx.lineWidth = Math.max(2, current.width / 600);
+          ctx.setLineDash([6, 6]);
+          ctx.strokeRect(x - 8, f.y - f.fontSize - 8, w + 16, f.fontSize + 16);
+          ctx.setLineDash([]);
+        }
+      });
+      setImageError(null);
+    };
+    img.onerror = () => { if (!cancelled) setImageError("Could not display this image. Choose a PNG or JPG certificate."); };
+    img.src = current.imageData;
+    return () => { cancelled = true; };
+  }, [current, editingFieldId]);
   const editingField = current?.fields.find((f) => f.id === editingFieldId) || null;
 
   function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setImageError(null);
+    const category = activeCat;
     const reader = new FileReader();
+    reader.onerror = () => setImageError("Could not read this image. Please select it again.");
     reader.onload = (ev) => {
       const src = ev.target?.result as string;
       const img = new Image();
       img.onload = () => {
         const config: TemplateConfig = {
-          category: activeCat,
+          category,
           imageData: src,
           width: img.width,
           height: img.height,
           fields: [],
         };
-        setTemplates((prev) => ({ ...prev, [activeCat]: config }));
-        draw(config);
+        commit(config);
+        setEditingFieldId(null);
+
       };
+      img.onerror = () => setImageError("Unsupported image. Choose a PNG or JPG certificate.");
       img.src = src;
     };
     reader.readAsDataURL(file);
-  }
-
-  function draw(config: TemplateConfig, highlightId?: string | null) {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.width = config.width;
-    canvas.height = config.height;
-    const ctx = canvas.getContext("2d")!;
-    const img = new Image();
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0, config.width, config.height);
-      config.fields.forEach((f) => {
-        ctx.font = `${f.fontSize}px ${f.fontFamily}`;
-        ctx.fillStyle = f.color;
-        ctx.textAlign = f.align;
-        ctx.fillText(`{${f.label}}`, f.x, f.y);
-
-        if (f.id === highlightId) {
-          const metrics = ctx.measureText(`{${f.label}}`);
-          const w = metrics.width;
-          let boxX = f.x;
-          if (f.align === "center") boxX = f.x - w / 2;
-          if (f.align === "right") boxX = f.x - w;
-          ctx.strokeStyle = "#F9654B";
-          ctx.lineWidth = 3;
-          ctx.setLineDash([6, 6]);
-          ctx.strokeRect(boxX - 8, f.y - f.fontSize / 2 - 8, w + 16, f.fontSize + 16);
-          ctx.setLineDash([]);
-        }
-      });
-    };
-    img.src = config.imageData;
   }
 
   function handleClick(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -85,6 +114,16 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
     const scaleY = current.height / rect.height;
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
+
+    const ctx = canvas.getContext("2d");
+    const hit = [...current.fields].reverse().find(f => {
+      if (!ctx) return false;
+      ctx.font = `${f.fontSize}px ${f.fontFamily}`;
+      const width = ctx.measureText(`{${f.label}}`).width;
+      const left = f.align === "center" ? f.x - width / 2 : f.align === "right" ? f.x - width : f.x;
+      return x >= left - 8 && x <= left + width + 8 && y >= f.y - f.fontSize - 8 && y <= f.y + 8;
+    });
+    if (hit) { setEditingFieldId(hit.id); return; }
 
     const label = fieldOptions.find((f) => f.key === selectedFieldKey)?.label || selectedFieldKey;
     const newField: TextField = {
@@ -99,9 +138,9 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
       align: "center",
     };
     const updated = { ...current, fields: [...current.fields, newField] };
-    setTemplates((prev) => ({ ...prev, [activeCat]: updated }));
+    commit(updated);
     setEditingFieldId(newField.id);
-    draw(updated, newField.id);
+
   }
 
   function updateField(fieldId: string, changes: Partial<TextField>) {
@@ -110,16 +149,16 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
       ...current,
       fields: current.fields.map((f) => (f.id === fieldId ? { ...f, ...changes } : f)),
     };
-    setTemplates((prev) => ({ ...prev, [activeCat]: updated }));
-    draw(updated, fieldId);
+    commit(updated);
+
   }
 
   function removeField(fieldId: string) {
     if (!current) return;
     const updated = { ...current, fields: current.fields.filter((f) => f.id !== fieldId) };
-    setTemplates((prev) => ({ ...prev, [activeCat]: updated }));
+    commit(updated);
     if (editingFieldId === fieldId) setEditingFieldId(null);
-    draw(updated);
+
   }
 
   function handleDone() {
@@ -130,6 +169,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
 
   return (
     <div className="space-y-4 sm:space-y-6 text-gray-900 min-w-0 max-w-full">
+      {imageError && <p role="alert" className="text-sm text-rose-700">{imageError}</p>}
       {/* Category Tabs if multiple categories */}
       {cats.length > 1 && (
         <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 min-w-0 max-w-full">
@@ -142,7 +182,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
               }}
               className={`text-xs px-4 py-2.5 min-h-[44px] rounded-xl font-medium border transition-all shrink-0 ${
                 activeCat === c
-                  ? "bg-[#F9654B] border-[#F9654B] text-white shadow-xs"
+                  ? "bg-[#17634D] border-[#17634D] text-white shadow-xs"
                   : "border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:text-gray-900"
               }`}
             >
@@ -155,7 +195,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
       {/* File Upload Control if no template loaded for active category */}
       {!current && (
         <div className="bg-white border-2 border-dashed border-gray-300 rounded-2xl p-6 sm:p-10 text-center space-y-4 shadow-xs min-w-0 max-w-full">
-          <div className="w-12 h-12 rounded-2xl bg-[#FFF0ED] text-[#F9654B] flex items-center justify-center mx-auto">
+          <div className="w-12 h-12 rounded-2xl bg-[#E7F0E9] text-[#17634D] flex items-center justify-center mx-auto">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
@@ -166,7 +206,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
               Select a high-resolution PNG or JPG image template to overlay recipient details onto.
             </p>
           </div>
-          <label className="inline-flex items-center justify-center gap-2 bg-[#F9654B] hover:bg-[#E04F34] text-white text-xs sm:text-sm font-semibold px-5 py-3 min-h-[44px] rounded-xl cursor-pointer transition-all shadow-xs">
+          <label className="inline-flex items-center justify-center gap-2 bg-[#17634D] hover:bg-[#104D3B] text-white text-xs sm:text-sm font-semibold px-5 py-3 min-h-[44px] rounded-xl cursor-pointer transition-all shadow-xs">
             <span>Browse Image File</span>
             <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
           </label>
@@ -176,13 +216,20 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
       {current && (
         <div className="space-y-4 sm:space-y-6 min-w-0 max-w-full">
           {/* Top Toolbar */}
+          <div className="editor-actions">
+            <span>Place your name tags</span>
+            <button type="button" onClick={undo} disabled={!history[activeCat]?.length} className="editor-undo" aria-label="Undo last certificate change">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M9 4 4 9l5 5M4 9h10a6 6 0 0 1 0 12" /></svg>
+              Undo
+            </button>
+          </div>
           <div className="bg-[#F9FAFB] border border-gray-200 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 max-w-[950px] mx-auto min-w-0 max-w-full">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-semibold text-gray-700">Field to place:</span>
               <select
                 value={selectedFieldKey}
                 onChange={(e) => setSelectedFieldKey(e.target.value)}
-                className="bg-white border border-gray-300 text-gray-900 font-medium rounded-xl px-3 py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 focus:outline-none focus:border-[#F9654B]"
+                className="bg-white border border-gray-300 text-gray-900 font-medium rounded-xl px-3 py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 focus:outline-none focus:border-[#17634D]"
               >
                 {fieldOptions.map((f) => (
                   <option key={f.key} value={f.key} className="bg-white text-gray-900">
@@ -195,18 +242,20 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
               </span>
             </div>
 
-            <label className="text-xs text-[#F9654B] hover:underline cursor-pointer font-medium min-h-[44px] sm:min-h-0 flex items-center">
+            <label className="text-xs text-[#17634D] hover:underline cursor-pointer font-medium min-h-[44px] sm:min-h-0 flex items-center">
               Change Image
               <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
             </label>
           </div>
 
           {/* Canvas Container */}
-          <div className="w-full max-w-[950px] mx-auto bg-gray-50 border border-gray-200 rounded-2xl p-2 sm:p-6 shadow-xs flex items-center justify-center overflow-x-auto min-w-0 max-w-full">
+          <div className="certificate-canvas-stage">
             <canvas
               ref={canvasRef}
+              aria-label="Certificate preview. Click to place the selected name tag."
               onClick={handleClick}
-              className="max-w-full h-auto object-contain cursor-crosshair rounded-xl border border-gray-300 bg-white shadow-sm transition-all"
+              className="certificate-editor-canvas"
+              style={{ aspectRatio: `${current.width} / ${current.height}` }}
             />
           </div>
 
@@ -234,7 +283,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                     max={200}
                     value={editingField.fontSize}
                     onChange={(e) => updateField(editingField.id, { fontSize: Number(e.target.value) })}
-                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B]"
+                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#17634D]"
                   />
                 </div>
 
@@ -253,7 +302,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                   <select
                     value={editingField.fontFamily}
                     onChange={(e) => updateField(editingField.id, { fontFamily: e.target.value })}
-                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B]"
+                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#17634D]"
                   >
                     {FONT_CHOICES.map((f) => (
                       <option key={f} value={f} className="bg-white text-gray-900" style={{ fontFamily: f }}>
@@ -268,7 +317,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                   <select
                     value={editingField.align}
                     onChange={(e) => updateField(editingField.id, { align: e.target.value as TextField["align"] })}
-                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B]"
+                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#17634D]"
                   >
                     <option value="left" className="bg-white text-gray-900">Left</option>
                     <option value="center" className="bg-white text-gray-900">Center</option>
@@ -284,7 +333,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                     type="number"
                     value={Math.round(editingField.x)}
                     onChange={(e) => updateField(editingField.id, { x: Number(e.target.value) })}
-                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B]"
+                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#17634D]"
                   />
                 </div>
                 <div>
@@ -293,7 +342,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                     type="number"
                     value={Math.round(editingField.y)}
                     onChange={(e) => updateField(editingField.id, { y: Number(e.target.value) })}
-                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#F9654B]"
+                    className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-3 py-2.5 text-base sm:text-sm min-h-[44px] focus:outline-none focus:border-[#17634D]"
                   />
                 </div>
               </div>
@@ -331,16 +380,16 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
                     key={f.id}
                     onClick={() => {
                       setEditingFieldId(f.id);
-                      draw(current, f.id);
+
                     }}
                     className={`w-full flex items-center justify-between text-xs border rounded-xl p-3 min-h-[44px] transition-all ${
                       editingFieldId === f.id
-                        ? "border-[#F9654B] bg-[#FFF0ED] text-[#F9654B] font-medium"
+                        ? "border-[#17634D] bg-[#E7F0E9] text-[#17634D] font-medium"
                         : "border-gray-200 bg-white text-gray-800 hover:border-gray-400"
                     }`}
                   >
                     <span className="truncate">{f.label} — {f.fontSize}px, {f.fontFamily}</span>
-                    <span className="text-[#F9654B] text-[11px] font-semibold shrink-0 ml-2">Edit</span>
+                    <span className="text-[#17634D] text-[11px] font-semibold shrink-0 ml-2">Edit</span>
                   </button>
                 ))}
               </div>
@@ -357,7 +406,7 @@ export default function TemplateManager({ categories, fieldOptions, onReady }: P
         <button
           onClick={handleDone}
           disabled={!allCatsHaveTemplate}
-          className="w-full sm:w-auto bg-[#F9654B] hover:bg-[#E04F34] text-white font-medium px-6 py-3 min-h-[44px] rounded-xl disabled:opacity-40 transition-all text-sm shadow-xs cursor-pointer"
+          className="w-full sm:w-auto bg-[#17634D] hover:bg-[#104D3B] text-white font-medium px-6 py-3 min-h-[44px] rounded-xl disabled:opacity-40 transition-all text-sm shadow-xs cursor-pointer"
         >
           {allCatsHaveTemplate ? "Save templates & proceed" : `Upload template for all categories (${Object.keys(templates).length}/${cats.length})`}
         </button>

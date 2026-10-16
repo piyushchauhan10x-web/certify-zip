@@ -1,6 +1,6 @@
 # Certify: existing application design
 
-This document describes the application at revision `b743db6`, restored on 14 October 2026. It is an inventory, not a redesign or a public-launch plan. Repository behavior is distinguished from external settings, which may change independently.
+Updated 15 October 2026 for the user-authorized visual redesign. Application behavior and authentication remain preserved. Repository behavior is distinguished from external settings.
 
 ## 1. Project overview
 
@@ -20,29 +20,17 @@ Email/password signup and login, Google login, password recovery and logout use 
 - Vercel hosts the existing application at https://certify-zip.vercel.app. No deployment or hosting setting is changed by this document.
 - Development output uses `.next-dev`; production build output uses `.next` to avoid manifest conflicts.
 
-## 3. Existing UI design system
+## 3. Studio visual system
 
-There are two existing style families. Preserve both where used; do not infer that one should replace the other.
+The redesign uses warm paper (#F5F3ED), white surfaces, evergreen ink (#20392F), a deep green header (#163B2C) and a green action color (#17634D; hover #104D3B). Muted text and borders use a green-tinted gray scale in tailwind.config.js. Existing semantic error/warning/success colors remain.
 
-| Surface/token | Existing value or behavior | Source |
-| --- | --- | --- |
-| Workspace and login background | `#F8FAFC`, white cards, gray text/borders | `app/page.tsx`, `components/AuthForm.tsx` |
-| Workspace/login primary | Coral `#F9654B`, hover `#E04F34` | Same components |
-| Global dark background | `#0A0908` | `app/globals.css`, `tailwind.config.js` |
-| Dark surface / hover | `#14120E` / `#1C1914` | `tailwind.config.js` |
-| Dark-theme accent | `#FC6C26` | `tailwind.config.js` |
-| Vanilla / muted text | `#FFF4D6`, `#D6CBB2`, `#8C8270` | `tailwind.config.js` |
-| Dark-theme borders | Translucent vanilla; orange hover | `tailwind.config.js` |
+Sora is the display face; Inter is the body face, using the existing Next font assets. Headlines use 32–48px on the workspace and restrained negative tracking. Form text remains readable on mobile. The layout uses a 1240px import area, a two-column introductory composition and 16px panel corners. The header is 80px on desktop and 68px on mobile. The workflow remains sequential with a highlighted active step.
 
-`app/layout.tsx` loads Sora (600/700) and Inter (400/500) using Next's Google font integration. Tailwind maps `font-display` to Sora and `font-body` to Inter. Some light surfaces explicitly use `font-sans`, so the configured display face is not universal. `text-text` appears in the layout but has no custom `text` color defined in the Tailwind extension.
+The import screen pairs a typographic introduction and explicitly illustrative certificate specimen with the working import panel. At narrow widths the specimen is hidden and the form becomes a single column. No sample certificate is injected into user data or exposed as a working template. The login screen pairs a green editorial panel with the existing authentication controls; on mobile its introduction is compact. Recovery and policy pages inherit the light palette.
 
-Spacing uses Tailwind utilities rather than a separately defined scale. Examples include page padding `p-4 sm:p-6`, auth-card padding `p-5 sm:p-9`, form `space-y-4`, and preview gaps `gap-3 sm:gap-4`. Auth cards have a 440px maximum width, rounded corners and borders. The workspace header uses a centered `max-w-6xl` container and is sticky.
+Buttons, focus rings, file-input keyboard focus, selection colors and reduced-motion behavior are defined in app/globals.css. The certificate specimen is HTML/CSS document typography, not a new image dependency. The only entrance animation is the import panel. Existing Gmail prompts and connected states inherit the palette.
 
-Primary buttons use filled accent colors, hover colors and reduced opacity while disabled. Google login is an outlined button. Inputs use borders, rounded corners and accent focus states. Login includes password visibility, remember-me, inline errors and configuration retry. The original profile avatar uses fixed `PC` initials; the menu displays the authenticated email and Gmail connection state.
-
-Navigation is the five-step workspace sequence: Add data, Design, Generate, Review, Send. The profile menu exposes Gmail connection and sign-out. Login links to signup mode, password recovery, Privacy and Terms. There is no separate public marketing landing page: anonymous workspace requests are sent to login.
-
-Responsive behavior includes `sm`/`md`/`lg` breakpoints, wrapping controls, full-width/min-width-zero containers, and a preview grid with one, two, three and four columns. Global CSS limits images/canvases to container width and, below 768px, makes most form text 16px and buttons at least 44px tall. The viewport uses `viewport-fit: cover`. A repeating certificate SVG decorates the light workspace and login; global CSS also contains dark-theme backdrop/shimmer/scan animation utilities.
+Mode: Operate. The screen must help people import, design, preview and send certificates; it must not imply saved history, billing, new account privileges or automatic email delivery. Preview with fixture accounts before testing against any external service.
 
 ## 4. Application architecture
 
@@ -95,4 +83,4 @@ Workspace recipients/templates/generated certificates are React state; the inspe
 
 ## 6. Preservation rules
 
-Preserve component styling, both existing color families, navigation, field behavior and the certificate workflow. Avoid dependencies added only for visual changes. Do not modify authentication, live Supabase settings, RLS, storage permissions or Vercel configuration without explicit approval. Do not interpret this inventory as authorization to fix known limitations. Use mocks or a dedicated test environment for delivery and data changes; never use production records as disposable fixtures.
+Preserve the studio visual system, navigation, field behavior and certificate workflow. Avoid dependencies added only for visual changes. Do not modify authentication, live Supabase settings, RLS, storage permissions or Vercel configuration without explicit approval. Do not interpret this inventory as authorization to fix known limitations. Use mocks or a dedicated test environment for delivery and data changes; never use production records as disposable fixtures.

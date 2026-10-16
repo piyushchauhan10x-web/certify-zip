@@ -15,7 +15,7 @@ export default function GmailPrompt({ onDismiss }: { onDismiss: () => void }) {
       <h2 id="gmail-prompt-title" className="text-lg font-bold mb-3">Connect Gmail to Certify?</h2>
       <p id="gmail-prompt-description" className="text-sm text-gray-600 mb-6">Would you like to connect your Gmail account so Certify can send emails on your behalf? This is optional, and you can connect Gmail later from the account menu.</p>
       <div className="flex flex-col sm:flex-row gap-3">
-        <ConnectGmail className="w-full min-h-[44px] rounded-xl bg-[#F9654B] hover:bg-[#E04F34] px-4 py-3 text-sm font-medium text-white disabled:opacity-50">Yes, Connect Gmail</ConnectGmail>
+        <ConnectGmail className="w-full min-h-[44px] rounded-xl bg-[#17634D] hover:bg-[#104D3B] px-4 py-3 text-sm font-medium text-white disabled:opacity-50">Yes, Connect Gmail</ConnectGmail>
         <button type="button" autoFocus onClick={onDismiss} className="min-h-[44px] rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium hover:bg-gray-50">Not Now</button>
       </div>
     </dialog>
