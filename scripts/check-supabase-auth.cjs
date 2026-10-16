@@ -34,7 +34,7 @@ const flow = load('lib/oauthFlow.ts', {
   assert.deepEqual(url.searchParams.get('scope').split(' '), ['openid', 'email', scope]);
   const sheetsStart = flow.startOAuth(new NextRequest('https://certify.test/api/auth/gmail/connect?purpose=sheets'), 'user-a');
   assert.ok(new URL(sheetsStart.headers.get('location')).searchParams.get('scope').includes('spreadsheets.readonly'));
-  for (const [key, value] of Object.entries({ access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' })) {
+  for (const [key, value] of Object.entries({ access_type: 'offline', prompt: 'select_account consent', include_granted_scopes: 'true' })) {
     assert.equal(url.searchParams.get(key), value);
   }
   const cookie = start.cookies.get('gmail_oauth_state').value;

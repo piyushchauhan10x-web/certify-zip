@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { GeneratedCert, Recipient } from "@/types";
 import ProgressBar from "./ProgressBar";
-import ConnectGmail from "./ConnectGmail";
+import SendGmailConnection, { checkSendingAccount } from "./SendGmailConnection";
 import { request, HttpError } from "@/lib/http";
 type Result = { id: string; to: string; ok: boolean; error?: string };
 export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[]; recipients: Recipient[] }) {
@@ -10,17 +10,27 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
   const [subject, setSubject] = useState("Your Certificate 🎉");
   const [body, setBody] = useState("Hi {name}, please find your certificate attached.");
   const [sending, setSending] = useState(false);
-  const [reconnect, setReconnect] = useState(false);
+  const [gmailReady, setGmailReady] = useState(false);
+  const [connectionError, setConnectionError] = useState("");
+  const markGmailReady = useCallback(() => setGmailReady(true), []);
   const [done, setDone] = useState(0);
   const [results, setResults] = useState<Result[]>([]);
   const recMap = new Map(recipients.map(r => [r.id, r]));
   const currentResults = results.filter(r => certs.some(c => c.recipientId === r.id));
   const pending = certs.filter(c => !currentResults.some(r => r.id === c.recipientId && r.ok));
   async function handleSend() {
-    if (sending) return;
-    setSending(true); setReconnect(false); setDone(0);
+    if (sending || !gmailReady) return;
+    setSending(true); setConnectionError(""); setDone(0);
     const next = [...currentResults.filter(r => r.ok)];
     try {
+      try {
+        const status = await checkSendingAccount();
+        if (!status.googleConnected) { setGmailReady(false); return; }
+      } catch {
+        console.error("[SEND_GMAIL_PREFLIGHT] Could not verify sending account.");
+        setConnectionError("Could not verify your Gmail connection. Please try again.");
+        return;
+      }
       // Concurrency is deliberately one: await upload and delivery for each recipient.
       for (const cert of pending) {
         const recipient = recMap.get(cert.recipientId);
@@ -38,7 +48,12 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
           next.push({ id: recipient.id, to: recipient.email, ok: true });
         } catch (error) {
           console.error("[CERTIFICATE_SEND] Upload or delivery failed.");
-          if (error instanceof HttpError && ["LOGIN_REQUIRED", "RECONNECT_GMAIL", "GMAIL_PERMISSION_MISSING"].includes(error.code || "")) setReconnect(true);
+          if (error instanceof HttpError && ["LOGIN_REQUIRED", "RECONNECT_GMAIL", "GMAIL_PERMISSION_MISSING"].includes(error.code || "")) {
+            setGmailReady(false);
+            next.push({ id: recipient.id, to: recipient.email, ok: false, error: error.message });
+            setResults([...next]);
+            break;
+          }
           const message = error instanceof Error ? error.message : "Certificate delivery failed.";
           next.push({ id: recipient.id, to: recipient.email, ok: false, error: delivering && (!(error instanceof HttpError) || error.status === 408) ? message + " Check Sent mail before retrying; delivery may have completed." : message });
         } finally {
@@ -53,6 +68,9 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
   }
   return (
     <div className="space-y-4 text-gray-900 min-w-0 max-w-full">
+      {!gmailReady && <SendGmailConnection onReady={markGmailReady} />}
+      {gmailReady && <p role="status" className="text-sm text-emerald-700">Gmail connected. Review your message, then send your certificates.</p>}
+      {connectionError && <p role="alert" className="text-sm text-red-600">{connectionError}</p>}
       <div>
         <label className="text-xs font-semibold text-gray-700 mb-1.5 block">From name (optional)</label>
         <input
@@ -87,16 +105,13 @@ export default function SendPanel({ certs, recipients }: { certs: GeneratedCert[
       <div className="pt-2 sticky bottom-0 bg-white pb-[max(12px,env(safe-area-inset-bottom))] z-10">
         <button
           onClick={handleSend}
-          disabled={sending || pending.length === 0 || !subject.trim()}
+          disabled={sending || !gmailReady || pending.length === 0 || !subject.trim()}
           className="w-full sm:w-auto bg-[#17634D] hover:bg-[#104D3B] text-white font-medium text-sm px-6 py-3 min-h-[44px] rounded-xl disabled:opacity-40 transition-all shadow-xs cursor-pointer flex items-center justify-center"
         >
           {sending ? `Sending emails... ${done} done` : pending.length === 0 ? "All certificates sent" : currentResults.length ? `Retry / send ${pending.length} remaining` : `Send ${pending.length} certificates`}
         </button>
       </div>
 
-      {reconnect && (
-        <ConnectGmail className="text-sm font-semibold text-[#17634D] underline">Reconnect Gmail</ConnectGmail>
-      )}
       {sending && <ProgressBar done={done} total={certs.length} />}
       
       {!sending && currentResults.length > 0 && <p role="status" className="text-sm">{currentResults.filter(r => r.ok).length} sent, {currentResults.filter(r => !r.ok).length} failed. Retry sends only remaining certificates.</p>}
